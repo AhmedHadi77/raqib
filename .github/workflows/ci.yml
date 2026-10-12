@@ -9,16 +9,24 @@ jobs:
         with: { python-version: "3.11" }
       - run: pip install -r backend/requirements-dev.txt -r backend/requirements-ai.txt -r edge/requirements.txt -r edge/requirements-video.txt
       - run: ruff check edge backend tools --select E9,F63,F7,F82
-      - run: cd edge && python -m pytest -q
-      - run: cd backend && EMBEDDING_BACKEND=hash python -m pytest -q
-      - run: EMBEDDING_BACKEND=hash python tools/e2e_test.py
+      - name: Robot tests
+        run: cd edge && python -m pytest -q -rf --tb=short 2>&1 | tee ../edge-tests.txt; exit ${PIPESTATUS[0]}
+      - name: Server tests
+        run: cd backend && EMBEDDING_BACKEND=hash python -m pytest -q -rf --tb=short 2>&1 | tee ../backend-tests.txt; exit ${PIPESTATUS[0]}
+      - name: Whole-system test
+        run: EMBEDDING_BACKEND=hash python tools/e2e_test.py 2>&1 | tee e2e.txt; exit ${PIPESTATUS[0]}
+      - name: Explain the failure
+        if: failure()
+        run: python tools/ci_annotate.py edge-tests.txt backend-tests.txt e2e.txt
   mobile:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
-      - run: cd mobile && npm ci && npx tsc --noEmit
+      - run: cd mobile && npm ci && npx tsc --noEmit 2>&1 | tee ../tsc.txt; exit ${PIPESTATUS[0]}
+      - if: failure()
+        run: python3 tools/ci_annotate.py tsc.txt
   docker:
     runs-on: ubuntu-latest
     steps:

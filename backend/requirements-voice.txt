@@ -1,0 +1,3 @@
+# Free, offline speech recognition for voice commands (install_voice.bat).
+# The model (~140 MB for base.en) downloads once into backend/data/models.
+faster-whisper>=1.1

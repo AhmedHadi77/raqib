@@ -1,0 +1,31 @@
+    # STEP 6 - three HC-SR04 ultrasonic sensors, 7 cm high: centre straight ahead, left and right turned 45 degrees.
+    # lookupTable turns metres into centimetres: 0.02 m -> 2, 4 m -> 400 (nothing in range).
+    DistanceSensor {
+      translation 0.12 0 0.07
+      name "us_center"
+      type "sonar"
+      numberOfRays 5
+      aperture 0.26
+      lookupTable [ 0.02 2 0, 4 400 0 ]
+      children [ Shape { appearance PBRAppearance { baseColor 0.1 0.35 0.7 roughness 0.5 metalness 0 } geometry Box { size 0.008 0.045 0.02 } } ]
+    }
+    DistanceSensor {
+      translation 0.085 0.068 0.07
+      rotation 0 0 1 0.7854
+      name "us_left"
+      type "sonar"
+      numberOfRays 5
+      aperture 0.26
+      lookupTable [ 0.02 2 0, 4 400 0 ]
+      children [ Shape { appearance PBRAppearance { baseColor 0.1 0.35 0.7 roughness 0.5 metalness 0 } geometry Box { size 0.008 0.045 0.02 } } ]
+    }
+    DistanceSensor {
+      translation 0.085 -0.068 0.07
+      rotation 0 0 1 -0.7854
+      name "us_right"
+      type "sonar"
+      numberOfRays 5
+      aperture 0.26
+      lookupTable [ 0.02 2 0, 4 400 0 ]
+      children [ Shape { appearance PBRAppearance { baseColor 0.1 0.35 0.7 roughness 0.5 metalness 0 } geometry Box { size 0.008 0.045 0.02 } } ]
+    }

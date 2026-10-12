@@ -1,0 +1,26 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r backend/requirements-dev.txt -r backend/requirements-ai.txt -r edge/requirements.txt -r edge/requirements-video.txt
+      - run: ruff check edge backend tools --select E9,F63,F7,F82
+      - run: cd edge && python -m pytest -q
+      - run: cd backend && EMBEDDING_BACKEND=hash python -m pytest -q
+      - run: EMBEDDING_BACKEND=hash python tools/e2e_test.py
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: cd mobile && npm ci && npx tsc --noEmit
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --profile sim build

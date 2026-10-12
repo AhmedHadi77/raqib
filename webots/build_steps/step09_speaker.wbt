@@ -1,0 +1,2 @@
+    # STEP 9 - speaker (PAM8403 amplifier + small speaker) for spoken replies and exam warnings.
+    Speaker { name "speaker" }

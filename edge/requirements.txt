@@ -1,0 +1,6 @@
+# CORE edge requirements (laptop simulation AND Raspberry Pi)
+numpy>=1.26
+pillow>=10.1
+paho-mqtt>=2.1,<3
+PyYAML>=6.0
+pytest>=8.0

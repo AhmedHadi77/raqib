@@ -1,0 +1,75 @@
+# Builds the installable Android app (Raqib.apk) on GitHub's free build machines.
+# Runs on every push to main that touches the app, or by hand: Actions > Build Android APK > Run workflow.
+# The finished APK is attached to the run (Artifacts > Raqib-apk) and to a "latest-apk" release.
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/android-apk.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: arm64-v8a,armeabi-v7a
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.daemon=false
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install app packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Generate the Android project
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Build the release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: |
+          V=$(node -p "require('./app.json').expo.version")
+          mkdir -p ../apk-out
+          cp android/app/build/outputs/apk/release/app-release.apk "../apk-out/Raqib-${V}.apk"
+          ls -la ../apk-out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Raqib-apk
+          path: apk-out/*.apk
+          retention-days: 30
+
+      - name: Publish as the "latest-apk" release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-apk --yes --cleanup-tag || true
+          gh release create latest-apk apk-out/*.apk --title "Raqib app (latest build)" \
+            --notes "Install on Android: open this file on the phone and allow installing from this source." --latest

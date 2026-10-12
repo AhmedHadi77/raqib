@@ -1,0 +1,106 @@
+# Simulated building used when simulation: true
+# Coordinates in metres. The robot starts at Home (0,0) facing +x along a corridor.
+bounds: [-1.0, -2.0, 15.5, 2.0]          # x_min, y_min, x_max, y_max (walls)
+
+# Axis-aligned boxes [x_min, y_min, x_max, y_max]  (chairs, bins, etc.)
+obstacles:
+  - [7.3, -0.25, 7.7, 0.25]              # a chair in the corridor between Hall B and Hall A
+  # Exam_Hall: four exam desks with a student at each
+  - [11.6, 1.15, 12.2, 1.6]
+  - [11.6, -1.6, 12.2, -1.15]
+  - [13.9, 1.15, 14.5, 1.6]
+  - [13.9, -1.6, 14.5, -1.15]
+
+# People talking (exam monitoring demo). level_db = loudness 1 m from the speaker.
+# Each one talks for `on_s` seconds out of every `period_s`, starting `phase_s` into the period.
+sound_sources:
+  - {name: student_back_left,  x: 14.2, y: 1.35,  level_db: 62, period_s: 50, on_s: 22, phase_s: 6}
+  - {name: student_front_right, x: 11.9, y: -1.35, level_db: 58, period_s: 70, on_s: 12, phase_s: 40}
+  - {name: whisper_front_left, x: 11.9, y: 1.35, level_db: 42, kind: whisper, period_s: 90, on_s: 15, phase_s: 70}
+  - {name: dropped_pencil_case, x: 14.6, y: -1.5, level_db: 80, kind: bang, period_s: 100, on_s: 1.2, phase_s: 55}
+
+# Students at the exam desks (sitting just behind each desk, facing +x = the front of the hall).
+# Behaviours repeat every `every_s` seconds, last `for_s` seconds and start `at_s` into the cycle.
+#   head_turn: head turned sideways by `yaw` degrees   look_down: head bowed by `pitch` degrees
+#   phone / notes / earpiece: that object is visible (a phone also bows the head)
+students:
+  - {name: desk_front_left,  x: 11.65, y: 1.38,  behaviours: [{type: head_turn, yaw: 60, every_s: 60, for_s: 9, at_s: 15}]}
+  - {name: desk_front_right, x: 11.65, y: -1.38, behaviours: [{type: phone, every_s: 80, for_s: 18, at_s: 30}]}
+  - {name: desk_back_left,   x: 13.95, y: 1.38,  behaviours: [{type: notes, every_s: 100, for_s: 30, at_s: 45}]}
+  - {name: desk_back_right,  x: 13.95, y: -1.38, behaviours: [{type: earpiece, every_s: 120, for_s: 45, at_s: 20},
+                                                              {type: look_down, pitch: 55, every_s: 120, for_s: 14, at_s: 80}]}
+
+# What each room "looks / sounds / smells" like. Change these to test every verdict.
+scenarios:
+  Home:
+    temperature_c: 25.0
+    humidity_pct: 55
+    voc_level: low                       # low | medium | high | extreme
+    occupants: 1
+    lights_on: true
+    projector_on: false
+    monitors_on: false
+    exit_blocked: false
+    extinguisher_present: true
+    hazardous_tools: []
+    audio: quiet_room                    # quiet_room | ac_fan | crowd | alarm
+  IoT_Lab:                               # Appendix D2 sample: problems everywhere
+    temperature_c: 29.4
+    humidity_pct: 74
+    voc_level: high
+    occupants: 0
+    lights_on: true
+    projector_on: false
+    monitors_on: true
+    exit_blocked: true
+    extinguisher_present: true
+    hazardous_tools: ["soldering iron left on bench"]
+    audio: ac_fan
+  LectureHall_B:
+    temperature_c: 18.5                  # over-cooled empty hall => energy waste
+    humidity_pct: 50
+    voc_level: low
+    occupants: 0
+    lights_on: true
+    projector_on: true
+    monitors_on: false
+    exit_blocked: false
+    extinguisher_present: true
+    hazardous_tools: []
+    audio: ac_fan
+  LectureHall_A:                         # Appendix D3: all clear
+    temperature_c: 24.1
+    humidity_pct: 52
+    voc_level: low
+    occupants: 0
+    lights_on: false
+    projector_on: false
+    monitors_on: false
+    exit_blocked: false
+    extinguisher_present: true
+    hazardous_tools: []
+    audio: quiet_room
+  Exam_Hall:                             # exam in progress: 4 students, silence expected
+    temperature_c: 24.5
+    humidity_pct: 55
+    voc_level: low
+    occupants: 4
+    lights_on: true
+    projector_on: false
+    monitors_on: false
+    exit_blocked: false
+    extinguisher_present: true
+    hazardous_tools: []
+    audio: quiet_room
+  _corridor:
+    temperature_c: 26.0
+    humidity_pct: 60
+    voc_level: low
+    occupants: 0
+    lights_on: true
+    projector_on: false
+    monitors_on: false
+    exit_blocked: false
+    extinguisher_present: false
+    hazardous_tools: []
+    audio: quiet_room

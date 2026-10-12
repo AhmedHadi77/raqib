@@ -1,0 +1,442 @@
+{
+  "version": 1,
+  "author": "Raqib",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-pi-pico",
+      "id": "pico",
+      "top": 0,
+      "left": 0,
+      "attrs": {
+        "env": "micropython-20260406-v1.28.0"
+      }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "us_left",
+      "top": -200,
+      "left": -330,
+      "attrs": {
+        "distance": "120"
+      }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "us_center",
+      "top": -200,
+      "left": -140,
+      "attrs": {
+        "distance": "140"
+      }
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "us_right",
+      "top": -200,
+      "left": 50,
+      "attrs": {
+        "distance": "300"
+      }
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "imu",
+      "top": 10,
+      "left": -280,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "pan",
+      "top": -40,
+      "left": 190,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "tilt",
+      "top": 40,
+      "left": 190,
+      "attrs": {}
+    },
+    {
+      "type": "chip-l298n",
+      "id": "l298n",
+      "top": 140,
+      "left": 200,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_lf",
+      "top": 260,
+      "left": 200,
+      "attrs": {
+        "color": "green",
+        "label": "L fwd"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_lb",
+      "top": 260,
+      "left": 240,
+      "attrs": {
+        "color": "red",
+        "label": "L back"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_rf",
+      "top": 260,
+      "left": 290,
+      "attrs": {
+        "color": "green",
+        "label": "R fwd"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_rb",
+      "top": 260,
+      "left": 330,
+      "attrs": {
+        "color": "red",
+        "label": "R back"
+      }
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "enc_left",
+      "top": 230,
+      "left": -300,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "enc_right",
+      "top": 320,
+      "left": -300,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-gas-sensor",
+      "id": "gas",
+      "top": 120,
+      "left": -300,
+      "attrs": {
+        "ppm": "400"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "speaker",
+      "top": -100,
+      "left": -90,
+      "attrs": {
+        "volume": "0.2"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "us_left:VCC",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "us_left:GND",
+      "pico:GND.8",
+      "black",
+      []
+    ],
+    [
+      "us_left:TRIG",
+      "pico:GP12",
+      "orange",
+      []
+    ],
+    [
+      "us_left:ECHO",
+      "pico:GP13",
+      "blue",
+      []
+    ],
+    [
+      "us_center:VCC",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "us_center:GND",
+      "pico:GND.8",
+      "black",
+      []
+    ],
+    [
+      "us_center:TRIG",
+      "pico:GP10",
+      "orange",
+      []
+    ],
+    [
+      "us_center:ECHO",
+      "pico:GP11",
+      "blue",
+      []
+    ],
+    [
+      "us_right:VCC",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "us_right:GND",
+      "pico:GND.8",
+      "black",
+      []
+    ],
+    [
+      "us_right:TRIG",
+      "pico:GP8",
+      "orange",
+      []
+    ],
+    [
+      "us_right:ECHO",
+      "pico:GP9",
+      "blue",
+      []
+    ],
+    [
+      "imu:VCC",
+      "pico:3V3",
+      "red",
+      []
+    ],
+    [
+      "imu:GND",
+      "pico:GND.3",
+      "black",
+      []
+    ],
+    [
+      "imu:SDA",
+      "pico:GP4",
+      "blue",
+      []
+    ],
+    [
+      "imu:SCL",
+      "pico:GP5",
+      "gold",
+      []
+    ],
+    [
+      "pan:V+",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "pan:GND",
+      "pico:GND.4",
+      "black",
+      []
+    ],
+    [
+      "pan:PWM",
+      "pico:GP14",
+      "orange",
+      []
+    ],
+    [
+      "tilt:V+",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "tilt:GND",
+      "pico:GND.4",
+      "black",
+      []
+    ],
+    [
+      "tilt:PWM",
+      "pico:GP15",
+      "orange",
+      []
+    ],
+    [
+      "l298n:EN A",
+      "pico:GP16",
+      "violet",
+      []
+    ],
+    [
+      "l298n:IN1",
+      "pico:GP17",
+      "violet",
+      []
+    ],
+    [
+      "l298n:IN2",
+      "pico:GP18",
+      "violet",
+      []
+    ],
+    [
+      "l298n:IN3",
+      "pico:GP19",
+      "violet",
+      []
+    ],
+    [
+      "l298n:IN4",
+      "pico:GP20",
+      "violet",
+      []
+    ],
+    [
+      "l298n:EN B",
+      "pico:GP21",
+      "violet",
+      []
+    ],
+    [
+      "l298n:5V",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "l298n:GND",
+      "pico:GND.6",
+      "black",
+      []
+    ],
+    [
+      "l298n:OUT1",
+      "led_lf:A",
+      "green",
+      []
+    ],
+    [
+      "led_lf:C",
+      "l298n:OUT2",
+      "green",
+      []
+    ],
+    [
+      "l298n:OUT2",
+      "led_lb:A",
+      "green",
+      []
+    ],
+    [
+      "led_lb:C",
+      "l298n:OUT1",
+      "green",
+      []
+    ],
+    [
+      "l298n:OUT3",
+      "led_rf:A",
+      "green",
+      []
+    ],
+    [
+      "led_rf:C",
+      "l298n:OUT4",
+      "green",
+      []
+    ],
+    [
+      "l298n:OUT4",
+      "led_rb:A",
+      "green",
+      []
+    ],
+    [
+      "led_rb:C",
+      "l298n:OUT3",
+      "green",
+      []
+    ],
+    [
+      "enc_left:VCC",
+      "pico:3V3",
+      "red",
+      []
+    ],
+    [
+      "enc_left:GND",
+      "pico:GND.2",
+      "black",
+      []
+    ],
+    [
+      "enc_left:CLK",
+      "pico:GP6",
+      "cyan",
+      []
+    ],
+    [
+      "enc_right:VCC",
+      "pico:3V3",
+      "red",
+      []
+    ],
+    [
+      "enc_right:GND",
+      "pico:GND.2",
+      "black",
+      []
+    ],
+    [
+      "enc_right:CLK",
+      "pico:GP7",
+      "cyan",
+      []
+    ],
+    [
+      "gas:VCC",
+      "pico:VBUS",
+      "red",
+      []
+    ],
+    [
+      "gas:GND",
+      "pico:GND.5",
+      "black",
+      []
+    ],
+    [
+      "gas:AOUT",
+      "pico:GP26",
+      "white",
+      []
+    ],
+    [
+      "speaker:1",
+      "pico:GND.7",
+      "black",
+      []
+    ],
+    [
+      "speaker:2",
+      "pico:GP22",
+      "orange",
+      []
+    ]
+  ],
+  "dependencies": {
+    "chip-l298n": "github:drf5n/Wokwi-Chip-L298N@1.0.5"
+  }
+}

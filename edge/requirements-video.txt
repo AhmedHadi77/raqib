@@ -1,0 +1,4 @@
+# EXTRAS - WebRTC live video (aiortc/PyAV) and OpenCV (~75 MB download).
+# Without them the app shows 2 fps JPEG frames instead of WebRTC video.
+aiortc>=1.9
+opencv-python-headless>=4.9

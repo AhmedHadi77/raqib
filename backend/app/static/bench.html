@@ -1,0 +1,468 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Raqib Wiring Bench</title>
+<link rel="icon" href="/brand/logo.svg"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a workbench. Parts tray on the left, the Pi's 40-pin header (navy, like the app's drive console) on the right, reference sections below. */
+:root {
+  --bg: #F4F6FA; --surface: #FFFFFF; --sunken: #EBEEF5; --ink: #0D1530; --ink-soft: #56607A; --line: #DDE2EC;
+  --primary: #3D63FF; --primary-soft: #E5EBFF; --on-primary: #FFFFFF;
+  --ok: #13905C; --ok-soft: #DDF4EA; --warn: #9A6100; --warn-soft: #FFF0D3; --danger: #C93434; --danger-soft: #FCE6E6;
+  --board: #0D1530; --board2: #16224A; --board-line: #2A3966; --board-ink: #EEF2FF; --board-soft: #95A2C6;
+  --c-p5: #FF6B6B; --c-p33: #FFA94D; --c-gnd: #8A94AD; --c-sda: #7C95FF; --c-scl: #FFD43B; --c-gpio: #3DD598; --c-id: #4A5578; --c-ext: #38D6EE;
+  --f-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #080D1D; --surface: #101831; --sunken: #0C1328; --ink: #E9EDF8; --ink-soft: #9AA6C2; --line: #212D50;
+  --primary: #7C95FF; --primary-soft: #1B2758; --on-primary: #080D1D;
+  --ok: #3DD598; --ok-soft: #10301F; --warn: #FFB224; --warn-soft: #3A2B0C; --danger: #FF6B6B; --danger-soft: #3E1A20;
+  --board: #0B1229; --board2: #121C3D; --board-line: #2A3A6A; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #080D1D; --surface: #101831; --sunken: #0C1328; --ink: #E9EDF8; --ink-soft: #9AA6C2; --line: #212D50;
+  --primary: #7C95FF; --primary-soft: #1B2758; --on-primary: #080D1D;
+  --ok: #3DD598; --ok-soft: #10301F; --warn: #FFB224; --warn-soft: #3A2B0C; --danger: #FF6B6B; --danger-soft: #3E1A20;
+  --board: #0B1229; --board2: #121C3D; --board-line: #2A3A6A; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+h1, h2, h3 { font-family: var(--f-display); letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; }
+h2 { font-size: 22px; font-weight: 800; }
+h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+p { margin: 0; }
+.soft { color: var(--ink-soft); }
+.mono { font-family: var(--f-mono); font-size: 0.86em; }
+code { font-family: var(--f-mono); font-size: 0.86em; background: var(--sunken); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: end; justify-content: space-between; }
+.top .intro { max-width: 640px; display: grid; gap: 10px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--primary); }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.seg { display: inline-flex; background: var(--sunken); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.seg button { border: 0; background: transparent; padding: 7px 16px; border-radius: 999px; font-weight: 600; color: var(--ink-soft); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 10px; font-weight: 600; }
+.btn:hover { border-color: var(--primary); }
+.progress { display: grid; gap: 6px; min-width: 220px; }
+.progress .bar { height: 8px; background: var(--sunken); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+.progress .bar i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .3s ease; }
+.progress .lbl { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* bench */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 24px; margin-top: 28px; align-items: start; }
+@media (max-width: 900px) { .bench { grid-template-columns: minmax(0, 1fr); } .board-col { order: -1; } }
+.tray { display: grid; gap: 10px; }
+.tray-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.part { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.part > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; }
+.part > summary::-webkit-details-marker { display: none; }
+.part .badge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-family: var(--f-mono); font-size: 12px; font-weight: 700; background: var(--primary-soft); color: var(--primary); }
+.part.done .badge { background: var(--ok-soft); color: var(--ok); }
+.part .name { font-weight: 600; }
+.part .sub { font-size: 13px; color: var(--ink-soft); }
+.part .count { font-family: var(--f-mono); font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.part.done .count { color: var(--ok); }
+.part .body { padding: 0 14px 14px; display: grid; gap: 12px; }
+.pins { display: flex; flex-wrap: wrap; gap: 8px; }
+.pinbtn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--sunken); border-radius: 999px; padding: 6px 12px 6px 8px; font-size: 13px; font-weight: 600; }
+.pinbtn .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--wire, var(--ink-soft)); background: transparent; flex: none; }
+.pinbtn.wired { border-color: var(--ok); background: var(--ok-soft); }
+.pinbtn.wired .dot { background: var(--wire); }
+.pinbtn.active { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
+.pinbtn .to { font-family: var(--f-mono); font-weight: 500; font-size: 11.5px; color: var(--ok); }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 13.5px; background: var(--sunken); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.facts dt { color: var(--ink-soft); }
+.facts dd { margin: 0; min-width: 0; }
+.tag-model { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--warn); background: var(--warn-soft); border-radius: 99px; padding: 1px 8px; margin-left: 4px; }
+
+/* board */
+.board-col { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 900px) { .board-col { position: static; } }
+.feedback { border-radius: var(--radius); padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 4px; min-height: 74px; }
+.feedback.ok { background: var(--ok-soft); border-color: var(--ok); }
+.feedback.bad { background: var(--danger-soft); border-color: var(--danger); }
+.feedback.info { background: var(--primary-soft); border-color: var(--primary); }
+.feedback strong { font-family: var(--f-display); font-size: 15px; }
+.feedback.ok strong { color: var(--ok); } .feedback.bad strong { color: var(--danger); } .feedback.info strong { color: var(--primary); }
+.board { background: var(--board); border: 1px solid var(--board-line); border-radius: 18px; padding: 16px; color: var(--board-ink); display: grid; gap: 14px; }
+.board-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.board-title span { font-family: var(--f-mono); font-size: 11.5px; color: var(--board-soft); letter-spacing: 0.06em; text-transform: uppercase; }
+.header-scroll { overflow-x: auto; }
+.header { display: grid; grid-template-columns: minmax(96px, 1fr) auto auto minmax(96px, 1fr); gap: 3px 6px; align-items: center; min-width: 360px; }
+.lab { font-family: var(--f-mono); font-size: 11.5px; color: var(--board-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lab.l { text-align: right; } .lab b { color: var(--board-ink); font-weight: 700; }
+.lab .w { color: var(--c-gpio); }
+.hp { width: 30px; height: 26px; border-radius: 7px; border: 1.5px solid var(--board-line); background: var(--board2); display: grid; place-items: center; position: relative; padding: 0; }
+.hp .n { font-family: var(--f-mono); font-size: 10.5px; font-weight: 700; color: var(--pc); }
+.hp:hover { border-color: var(--pc); }
+.hp.has { background: var(--pc); } .hp.has .n { color: #0B1229; }
+.hp.hint { animation: pulse 1s ease-in-out infinite; border-color: var(--c-ext); }
+.hp.flash-bad { animation: shake .35s; border-color: var(--danger); }
+.hp .k { position: absolute; top: -6px; right: -6px; background: var(--board-ink); color: #0B1229; font-family: var(--f-mono); font-size: 9.5px; font-weight: 700; border-radius: 99px; min-width: 15px; height: 15px; display: grid; place-items: center; padding: 0 3px; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-ext) 45%, transparent); } }
+@keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .hp.hint, .hp.flash-bad, .term.hint { animation: none; } .progress .bar i { transition: none; } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--board-soft); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.ext { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.grp { background: var(--board2); border: 1px solid var(--board-line); border-radius: 12px; padding: 10px; display: grid; gap: 6px; align-content: start; }
+.grp h4 { margin: 0; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--board-soft); font-weight: 500; }
+.term { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1.5px solid var(--board-line); background: var(--board); color: var(--board-ink); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; text-align: left; }
+.term:hover { border-color: var(--c-ext); }
+.term.has { border-color: var(--c-ext); }
+.term.hint { animation: pulse 1s ease-in-out infinite; border-color: var(--c-ext); }
+.term.flash-bad { animation: shake .35s; border-color: var(--danger); }
+.term .k { font-family: var(--f-mono); font-size: 10.5px; color: var(--c-ext); }
+
+/* reference */
+section.ref { margin-top: 56px; display: grid; gap: 16px; }
+section.ref > header { display: grid; gap: 6px; max-width: 70ch; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 760px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); font-weight: 500; background: var(--sunken); }
+tr:last-child td { border-bottom: 0; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 10px; align-content: start; }
+ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+ol.steps li::marker { font-family: var(--f-mono); font-weight: 700; color: var(--primary); }
+ul.rules { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+.cmd { background: var(--board); color: var(--board-ink); border-radius: 12px; padding: 14px 16px; font-family: var(--f-mono); font-size: 13px; overflow-x: auto; white-space: pre; line-height: 1.7; }
+.cmd .c { color: var(--board-soft); }
+.flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+@media (max-width: 640px) { .flow { grid-template-columns: minmax(0, 1fr); } }
+.flow .box { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--sunken); display: grid; gap: 4px; }
+.flow .box b { font-family: var(--f-display); }
+.done-banner { display: none; }
+.done-banner.show { display: grid; }
+</style>
+<style>body{margin:0}[hidden]{display:none!important}</style></head><body>
+<style>
+/* additions for the live bench */
+.strip { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.strip .grow { flex: 1 1 260px; min-width: 0; display: grid; gap: 2px; }
+.dotlive { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ink-soft); margin-right: 6px; }
+.dotlive.on { background: var(--ok); } .dotlive.off { background: var(--danger); }
+.switch { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; user-select: none; }
+.switch input { appearance: none; width: 42px; height: 24px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; flex: none; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
+.switch input:checked { background: var(--ok); } .switch input:checked::after { left: 21px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 4px 12px; font-weight: 700; font-size: 13px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.bad { background: var(--danger-soft); color: var(--danger); } .pill.idle { background: var(--sunken); color: var(--ink-soft); }
+a.btn { text-decoration: none; display: inline-block; }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.pinbtn.bad { border-color: var(--danger); background: var(--danger-soft); }
+.pinbtn.bad .to { color: var(--danger); }
+.hp.wrong { box-shadow: 0 0 0 2px var(--danger); }
+.health { display: grid; gap: 8px; }
+.hrow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.hrow .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+.hrow.ok .ic { background: var(--ok-soft); color: var(--ok); } .hrow.bad .ic { background: var(--danger-soft); color: var(--danger); }
+.hrow b { font-weight: 600; } .hrow .d { font-size: 13.5px; } .hrow .h { font-size: 12.5px; color: var(--ink-soft); }
+.overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 85%, transparent); display: grid; place-items: center; padding: 20px; z-index: 5; }
+.login { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; width: min(360px, 100%); display: grid; gap: 12px; }
+.login input { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--sunken); color: var(--ink); }
+.sel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="intro">
+      <div class="eyebrow">Raqib · virtual wiring</div>
+      <h1>Raqib Wiring Bench</h1>
+      <p class="soft">Wire every part to the Raspberry Pi, one pin at a time. With <b>Robot uses my wiring</b> on, the simulated robot (2D or Webots) works only as well as you wired it: a missing wire is a dead part, swapped wires make a wheel run backwards. When every part is wired, drive it from the app.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Mode">
+        <button id="mode-guided" aria-pressed="true" title="Wrong wires are refused with an explanation">Guided</button>
+        <button id="mode-free" aria-pressed="false" title="Any wire is allowed; the robot shows what it does">Free</button>
+      </div>
+      <label class="switch"><input type="checkbox" id="hints" checked> Hints</label>
+      <div class="progress" aria-live="polite">
+        <div class="bar"><i id="pbar"></i></div>
+        <div class="lbl"><span id="ptext">0 of 0 wires</span><span id="pmiss">0 mistakes</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="grow">
+      <div><span class="dotlive" id="live"></span><b id="robotname">Connecting to the robot…</b></div>
+      <div class="soft" style="font-size:13px" id="robotsub">The bench needs the server and a simulated robot running.</div>
+    </div>
+    <label class="switch"><input type="checkbox" id="enabled"> Robot uses my wiring</label>
+    <span class="pill idle" id="drivable">Not drivable yet</span>
+    <a class="btn primary" href="/drive" target="_blank" rel="noopener" id="drive">Drive it in the app</a>
+    <button class="btn danger" id="reset">Remove all wires</button>
+  </div>
+
+  <div class="bench">
+    <div class="tray">
+      <div class="tray-head"><h2>Parts</h2><span class="soft" style="font-size:13px">Start with the power parts</span></div>
+      <div id="parts"></div>
+    </div>
+    <div class="board-col" id="board-col">
+      <div class="feedback info" id="feedback" aria-live="polite">
+        <strong>Pick a pin to start</strong>
+        <span>Open a part on the left and click one of its pins, then click where it goes on the Pi or another board.</span>
+      </div>
+      <div class="sel-actions" id="selactions" hidden><button class="btn danger" id="unwire">Disconnect this wire</button></div>
+      <div class="board">
+        <div class="board-title"><h3>Raspberry Pi 4 · 40-pin header</h3><span>pin 1 is next to the SD card corner</span></div>
+        <div class="header-scroll"><div class="header" id="header"></div></div>
+        <div class="legend">
+          <span><i style="background:var(--c-p5)"></i>5 V</span><span><i style="background:var(--c-p33)"></i>3.3 V</span>
+          <span><i style="background:var(--c-gnd)"></i>Ground</span><span><i style="background:var(--c-sda)"></i>I²C SDA</span>
+          <span><i style="background:var(--c-scl)"></i>I²C SCL</span><span><i style="background:var(--c-gpio)"></i>GPIO (BCM number)</span>
+        </div>
+        <div class="ext" id="ext"></div>
+      </div>
+      <div>
+        <h3 style="margin:6px 0 10px">What the robot says</h3>
+        <div class="health" id="health"><p class="soft">Turn on <b>Robot uses my wiring</b> to see each part's status here and in the app's Robot health screen.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="loginbox" hidden>
+  <form class="login" id="loginform">
+    <h2>Sign in to Raqib</h2>
+    <p class="soft" style="font-size:13.5px">Use an operator or admin account to change the wiring.</p>
+    <input id="user" autocomplete="username" placeholder="Username">
+    <input id="pass" type="password" autocomplete="current-password" placeholder="Password">
+    <span id="loginerr" style="color:var(--danger);font-size:13px"></span>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let TOKEN = null;
+try {
+  const m = location.hash.match(/t=([^&]+)/);
+  if (m) { TOKEN = decodeURIComponent(m[1]); sessionStorage.setItem('raqib-bench-token', TOKEN); history.replaceState(null, '', location.pathname); }
+  else TOKEN = sessionStorage.getItem('raqib-bench-token');
+} catch (e) { /* storage blocked */ }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}), ...(opts.headers || {}) } });
+  if (res.status === 401) { $('loginbox').hidden = false; throw new Error('Please sign in'); }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || ('HTTP ' + res.status));
+  return body;
+}
+
+$('loginform').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const r = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: $('user').value, password: $('pass').value }) });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.detail || 'Sign-in failed');
+    TOKEN = b.access_token; try { sessionStorage.setItem('raqib-bench-token', TOKEN); } catch (e2) {}
+    $('loginbox').hidden = true; boot();
+  } catch (err) { $('loginerr').textContent = err.message; }
+});
+
+// ---------------------------------------------------------------- spec helpers
+let SPEC = null, HEADER = {}, EXT_NAME = {}, PARTS = [], TOTAL = 0;
+const CLS_NAME = { p5: '5 V', p33: '3.3 V', gnd: 'ground (GND)', sda: 'I²C SDA', scl: 'I²C SCL', gpio: 'a GPIO pin', id: 'a reserved ID pin' };
+const CLS_COLOR = { p5: 'var(--c-p5)', p33: 'var(--c-p33)', gnd: 'var(--c-gnd)', sda: 'var(--c-sda)', scl: 'var(--c-scl)', gpio: 'var(--c-gpio)', id: 'var(--c-id)' };
+const pinsOf = (cls) => Object.keys(HEADER).filter((k) => HEADER[k][1] === cls).map(Number);
+const wireColor = (s) => s.ext ? 'var(--c-ext)' : s.cls ? CLS_COLOR[s.cls] : CLS_COLOR[HEADER[s.pin][1]];
+const specText = (s) => s.ext ? EXT_NAME[s.ext] : s.cls ? `any ${CLS_NAME[s.cls]} pin (${pinsOf(s.cls).join(', ')})` : `pin ${s.pin} (${HEADER[s.pin][0]})`;
+const targetText = (t) => t.startsWith('pin:') ? `pin ${t.slice(4)} (${HEADER[+t.slice(4)][0]})` : EXT_NAME[t];
+const matches = (s, t) => s.ext ? t === s.ext : !t.startsWith('pin:') ? false : s.cls ? HEADER[+t.slice(4)][1] === s.cls : +t.slice(4) === s.pin;
+
+function whyWrong(part, pin, t) {
+  const s = pin.spec, hint = $('hints').checked ? ` It goes to ${specText(s)}.` : '';
+  if (!t.startsWith('pin:')) return s.ext ? `Not that terminal.${hint}` : `This wire goes on the Pi's 40-pin header.${hint}`;
+  if (s.ext) return (s.ext === 'bat+' ? 'That puts 11.1 V on the Pi and would destroy it.' : 'This one does not go on the Pi header.') + hint;
+  const got = HEADER[+t.slice(4)][1], want = s.cls || HEADER[s.pin][1];
+  if ((want === 'gnd' && (got === 'p5' || got === 'p33')) || ((want === 'p5' || want === 'p33') && got === 'gnd')) return `That joins power straight to ground: a short circuit.${hint}`;
+  if (want === 'p33' && got === 'p5') return `${part.name} runs on 3.3 V. On 5 V it would burn out.${hint}`;
+  if (want === 'p5' && got === 'p33') return `${part.name} needs 5 V. On 3.3 V it will not work.${hint}`;
+  if (['gpio', 'sda', 'scl'].includes(want) && ['p5', 'p33', 'gnd'].includes(got)) return `That is a ${CLS_NAME[got]} pin: a signal wire there shorts the signal.${hint}`;
+  if (got === 'id') return `Pins 27 and 28 are reserved for HAT identification.${hint}`;
+  if (want === 'sda' || want === 'scl') return `I²C uses the Pi's hardware I²C pins (pin 3 = SDA, pin 5 = SCL).${hint}`;
+  return `Right kind of pin, wrong number.${hint || ' Check config.yaml → hardware.'}`;
+}
+
+// ---------------------------------------------------------------- state
+let state = { mode: 'guided', enabled: false, wires: {}, mistakes: 0, open: 'ups' };
+let report = null, active = null, saveTimer = null;
+try { const s = JSON.parse(localStorage.getItem('raqib-bench-ui') || 'null'); if (s) { state.mode = s.mode || 'guided'; state.open = s.open || 'ups'; state.mistakes = s.mistakes || 0; } } catch (e) {}
+const saveUi = () => { try { localStorage.setItem('raqib-bench-ui', JSON.stringify({ mode: state.mode, open: state.open, mistakes: state.mistakes })); } catch (e) {} };
+
+function feedback(kind, title, text) {
+  const f = $('feedback'); f.className = `feedback ${kind}`; f.innerHTML = '';
+  const a = document.createElement('strong'); a.textContent = title; const b = document.createElement('span'); b.textContent = text; f.append(a, b);
+}
+
+function pinStatus(key) { return report && report.pins && report.pins[key] ? report.pins[key].status : (state.wires[key] ? 'ok' : 'missing'); }
+
+function renderParts() {
+  const host = $('parts'); host.innerHTML = '';
+  PARTS.forEach((part, i) => {
+    const done = part.pins.filter((p) => pinStatus(`${part.id}.${p.id}`) === 'ok').length;
+    const d = document.createElement('details'); d.className = 'part' + (done === part.pins.length ? ' done' : ''); d.open = state.open === part.id;
+    d.addEventListener('toggle', () => { if (d.open) { state.open = part.id; saveUi(); document.querySelectorAll('details.part').forEach((o) => { if (o !== d) o.open = false; }); } });
+    d.innerHTML = `<summary><span class="badge">${String(i + 1).padStart(2, '0')}</span><span><div class="name"></div><div class="sub"></div></span><span class="count">${done}/${part.pins.length}</span></summary><div class="body"><div class="pins"></div><dl class="facts"></dl></div>`;
+    d.querySelector('.name').textContent = part.name; d.querySelector('.sub').textContent = part.sub;
+    const pins = d.querySelector('.pins');
+    part.pins.forEach((pin) => {
+      const key = `${part.id}.${pin.id}`; const w = state.wires[key]; const st = pinStatus(key);
+      const b = document.createElement('button'); b.type = 'button';
+      b.className = 'pinbtn' + (w ? (st === 'wrong' ? ' bad' : ' wired') : '') + (active && active.key === key ? ' active' : '');
+      b.style.setProperty('--wire', wireColor(pin.spec));
+      b.innerHTML = '<span class="dot"></span><span class="t"></span>'; b.querySelector('.t').textContent = pin.label;
+      if (w) { const to = document.createElement('span'); to.className = 'to'; to.textContent = '→ ' + (w.startsWith('pin:') ? 'pin ' + w.slice(4) : (EXT_NAME[w] || w).split(' (')[0]); b.append(to); }
+      b.addEventListener('click', () => pick(part, pin));
+      pins.append(b);
+    });
+    const facts = d.querySelector('.facts');
+    [['In Webots', part.webots + (part.modelled ? ' (simulated in software)' : '')], ['config.yaml', part.config], ['Test on the Pi', part.test], ['Proof in the app', part.app]].forEach(([k, v], j) => {
+      const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd');
+      if (j === 1 || j === 2) { const c = document.createElement('code'); c.style.whiteSpace = 'pre-wrap'; c.textContent = v; dd.append(c); } else dd.textContent = v;
+      facts.append(dt, dd);
+    });
+    host.append(d);
+  });
+}
+
+function renderBoard() {
+  const h = $('header'); h.innerHTML = '';
+  const counts = {}, wrongT = new Set();
+  Object.entries(state.wires).forEach(([k, t]) => { counts[t] = (counts[t] || 0) + 1; if (pinStatus(k) === 'wrong') wrongT.add(t); });
+  const hint = new Set();
+  if (active && $('hints').checked) { const s = active.pin.spec; if (s.ext) hint.add(s.ext); else if (s.cls) pinsOf(s.cls).forEach((n) => hint.add('pin:' + n)); else hint.add('pin:' + s.pin); }
+  for (let r = 0; r < 20; r++) {
+    const odd = r * 2 + 1, even = odd + 1;
+    const lab = (n, side) => { const el = document.createElement('div'); el.className = 'lab ' + side; const [name] = HEADER[n]; const m = name.match(/^GPIO(\d+)(.*)$/);
+      el.innerHTML = m ? `<b class="w">GPIO ${m[1]}</b>${m[2] ? ' ' + m[2].trim() : ''}` : `<b>${name}</b>`; el.title = `Physical pin ${n}: ${name}`; return el; };
+    const btn = (n) => { const b = document.createElement('button'); b.type = 'button'; const t = 'pin:' + n;
+      b.className = 'hp' + (counts[t] ? ' has' : '') + (hint.has(t) ? ' hint' : '') + (wrongT.has(t) ? ' wrong' : '');
+      b.style.setProperty('--pc', CLS_COLOR[HEADER[n][1]]); b.setAttribute('aria-label', `Pin ${n}, ${HEADER[n][0]}`);
+      b.innerHTML = `<span class="n">${n}</span>${counts[t] > 1 ? `<span class="k">${counts[t]}</span>` : ''}`;
+      b.addEventListener('click', () => connect(t, b)); return b; };
+    h.append(lab(odd, 'l'), btn(odd), btn(even), lab(even, 'r'));
+  }
+  const ext = $('ext'); ext.innerHTML = '';
+  SPEC.ext.forEach((g) => {
+    const box = document.createElement('div'); box.className = 'grp'; const h4 = document.createElement('h4'); h4.textContent = g.group; box.append(h4);
+    g.items.forEach(([id, name]) => { const b = document.createElement('button'); b.type = 'button';
+      b.className = 'term' + (counts[id] ? ' has' : '') + (hint.has(id) ? ' hint' : '') + (wrongT.has(id) ? ' flash-bad' : '');
+      b.innerHTML = '<span class="nm"></span>' + (counts[id] ? `<span class="k">${counts[id]} wire${counts[id] > 1 ? 's' : ''}</span>` : '');
+      b.querySelector('.nm').textContent = name; b.addEventListener('click', () => connect(id, b)); box.append(b); });
+    ext.append(box);
+  });
+}
+
+const HEALTH_NAMES = { power: 'Power', motors: 'Drive motors', pan_tilt: 'Camera mount (servos)', ultrasonic: 'Distance sensors', encoders: 'Wheel encoders',
+  imu: 'Motion sensor (MPU6050)', environment: 'Air and climate', camera: 'Camera', microphone: 'Microphone', speaker: 'Speaker', battery: 'Battery gauge', i2c: 'I²C bus', wiring: 'Wiring warning' };
+function renderStatus() {
+  const n = Object.keys(state.wires).filter((k) => pinStatus(k) === 'ok').length;
+  $('pbar').style.width = `${TOTAL ? (n / TOTAL) * 100 : 0}%`;
+  $('ptext').textContent = `${n} of ${TOTAL} wires correct`;
+  $('pmiss').textContent = `${state.mistakes} mistake${state.mistakes === 1 ? '' : 's'}`;
+  $('mode-guided').setAttribute('aria-pressed', state.mode === 'guided');
+  $('mode-free').setAttribute('aria-pressed', state.mode === 'free');
+  $('enabled').checked = state.enabled;
+  const rob = report;
+  const dr = $('drivable');
+  if (!rob) { dr.className = 'pill idle'; dr.textContent = 'Robot not connected'; }
+  else if (!state.enabled) { dr.className = 'pill idle'; dr.textContent = 'Wiring not applied'; }
+  else if (rob.drivable) { dr.className = 'pill ok'; dr.textContent = 'Ready to drive'; }
+  else { dr.className = 'pill bad'; dr.textContent = 'Not drivable yet'; }
+  const hh = $('health'); hh.innerHTML = '';
+  if (!rob || !state.enabled) {
+    hh.innerHTML = '<p class="soft">Turn on <b>Robot uses my wiring</b> to see each part\'s status here and in the app\'s Robot health screen.</p>';
+    return;
+  }
+  Object.entries(rob.health).sort((a, b) => (a[1].ok - b[1].ok)).forEach(([k, v]) => {
+    const row = document.createElement('div'); row.className = 'hrow ' + (v.ok ? 'ok' : 'bad');
+    row.innerHTML = `<span class="ic">${v.ok ? '✓' : '!'}</span><div><b></b><div class="d"></div>${v.hint && !v.ok ? '<div class="h"></div>' : ''}</div>`;
+    row.querySelector('b').textContent = HEALTH_NAMES[k] || k; row.querySelector('.d').textContent = v.detail;
+    if (v.hint && !v.ok) row.querySelector('.h').textContent = v.hint;
+    hh.append(row);
+  });
+}
+
+function renderAll() { renderParts(); renderBoard(); renderStatus(); $('selactions').hidden = !(active && state.wires[active.key]); }
+
+// ---------------------------------------------------------------- talking to the robot
+function push() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await api('/wiring', { method: 'PUT', body: JSON.stringify({ enabled: state.enabled, wires: state.wires }) });
+      report = r.robot; setLive(!!r.robot, r.robot_error);
+      renderAll();
+    } catch (e) { setLive(false, e.message); }
+  }, 250);
+}
+
+function setLive(ok, err) {
+  $('live').className = 'dotlive ' + (ok ? 'on' : 'off');
+  $('robotname').textContent = ok ? 'Connected to the simulated robot' : 'Robot not connected';
+  $('robotsub').textContent = ok ? (state.enabled ? 'The robot is using your wiring right now. Robot health in the app shows the same.' : 'Your wiring is saved. Turn on "Robot uses my wiring" to apply it.')
+    : `${err || ''} Start the robot with start_all.bat (2D) or start_all_webots.bat (Webots), then reload this page.`;
+}
+
+function pick(part, pin) {
+  const key = `${part.id}.${pin.id}`; active = { part, pin, key };
+  const w = state.wires[key];
+  if (w) feedback(pinStatus(key) === 'wrong' ? 'bad' : 'info', `${part.name} · ${pin.label}`, `Wired to ${targetText(w)}. Click another place to move it, or disconnect it.`);
+  else feedback('info', `${part.name} · ${pin.label}`, $('hints').checked ? `The right place is pulsing on the board.${pin.divider ? ' This one needs a voltage divider.' : ''}` : 'Click where this wire goes.');
+  renderAll();
+  if (window.matchMedia('(max-width: 900px)').matches) $('board-col').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function connect(target, el) {
+  if (!active) { feedback('info', 'Pick a pin first', 'Open a part on the left and click one of its pins, then click here.'); return; }
+  const { part, pin, key } = active;
+  const ok = matches(pin.spec, target);
+  if (!ok) { state.mistakes += 1; saveUi(); el.classList.remove('flash-bad'); void el.offsetWidth; el.classList.add('flash-bad'); }
+  if (!ok && state.mode === 'guided') { feedback('bad', `${pin.label} does not go to ${targetText(target)}`, whyWrong(part, pin, target)); renderStatus(); return; }
+  state.wires[key] = target;
+  if (ok) {
+    const next = part.pins.find((p) => !state.wires[`${part.id}.${p.id}`]);
+    feedback('ok', `${pin.label} → ${targetText(target)}`, pin.why + (next ? '' : ` ${part.name} is fully wired.`));
+    active = next ? { part, pin: next, key: `${part.id}.${next.id}` } : null;
+  } else {
+    feedback('bad', `Wired ${pin.label} to ${targetText(target)}`, whyWrong(part, pin, target) + ' Watch what the robot does.');
+  }
+  renderAll(); push();
+}
+
+$('unwire').addEventListener('click', () => { if (!active) return; delete state.wires[active.key]; feedback('info', 'Wire removed', `${active.part.name} · ${active.pin.label} is disconnected.`); renderAll(); push(); });
+$('mode-guided').addEventListener('click', () => { state.mode = 'guided'; saveUi(); renderStatus(); feedback('info', 'Guided mode', 'Wrong wires are refused and explained.'); });
+$('mode-free').addEventListener('click', () => { state.mode = 'free'; saveUi(); renderStatus(); feedback('info', 'Free mode', 'Any wire is allowed. Wire something wrong on purpose and watch the robot and Robot health react.'); });
+$('hints').addEventListener('change', renderAll);
+$('enabled').addEventListener('change', (e) => { state.enabled = e.target.checked; renderStatus(); push(); });
+$('reset').addEventListener('click', () => { state.wires = {}; state.mistakes = 0; active = null; saveUi(); feedback('info', 'All wires removed', 'Start again with the UPS hat and the L298N.'); renderAll(); push(); });
+
+async function boot() {
+  if (!TOKEN) { $('loginbox').hidden = false; return; }
+  try {
+    SPEC = await api('/wiring/spec');
+  } catch (e) { setLive(false, e.message); feedback('bad', 'No robot', 'The bench reads the wiring from the robot program. Start it, then reload this page.'); return; }
+  HEADER = SPEC.header; PARTS = SPEC.parts; TOTAL = PARTS.reduce((n, p) => n + p.pins.length, 0);
+  EXT_NAME = Object.fromEntries(SPEC.ext.flatMap((g) => g.items.map(([id, n]) => [id, `${n} (${g.group.replace(/ \(.*\)/, '')})`])));
+  try {
+    const r = await api('/wiring');
+    state.wires = (r.saved && r.saved.wires) || {}; state.enabled = !!(r.saved && r.saved.enabled);
+    report = r.robot; setLive(!!r.robot, r.robot_error);
+  } catch (e) { setLive(false, e.message); }
+  renderAll();
+}
+boot();
+setInterval(async () => { if (!SPEC || !TOKEN) return; try { const r = await api('/wiring'); report = r.robot; setLive(!!r.robot, r.robot_error); renderStatus(); } catch (e) {} }, 5000);
+</script>
+</body></html>

@@ -1,0 +1,9 @@
+site_name: AI Agent Inspection Robot
+docs_dir: docs
+nav:
+  - Overview: index.md
+  - Architecture & API: ARCHITECTURE.md
+  - Wiring: WIRING.md
+  - Hardware bring-up: HARDWARE_BRINGUP.md
+  - Edge Impulse audio model: EDGE_IMPULSE.md
+  - Testing & KPIs: TESTING.md

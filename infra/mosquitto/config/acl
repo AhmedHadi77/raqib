@@ -1,0 +1,17 @@
+# Topic access control (least privilege)
+
+# backend: reads everything from robots, sends commands + heartbeats
+user backend
+topic read robot/#
+topic write robot/+/commands
+topic write robot/+/heartbeat
+
+# robot01: may only publish its own data and read its own commands
+user robot01
+topic write robot/robot01/telemetry
+topic write robot/robot01/events
+topic write robot/robot01/acks
+topic write robot/robot01/status
+topic write robot/robot01/info
+topic read robot/robot01/commands
+topic read robot/robot01/heartbeat

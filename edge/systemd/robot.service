@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Agent Inspection Robot - edge controller
+After=network-online.target pigpiod.service
+Wants=network-online.target pigpiod.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__EDGE_DIR__
+ExecStart=__EDGE_DIR__/.venv/bin/python -m robot.main --real
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+# give the safety thread priority over everything else
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

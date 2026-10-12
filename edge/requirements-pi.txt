@@ -1,0 +1,10 @@
+# Extra packages needed ONLY on the Raspberry Pi with the real hardware.
+# Install with:  pip install -r requirements.txt -r requirements-pi.txt
+# (picamera2 comes from apt: sudo apt install python3-picamera2 ; create the venv with --system-site-packages)
+gpiozero>=2.0
+pigpio>=1.78
+lgpio>=0.2 ; platform_machine == "aarch64"
+smbus2>=0.4
+bme680>=1.1          # Pimoroni BME680 driver
+sounddevice>=0.4
+edge_impulse_linux>=1.0

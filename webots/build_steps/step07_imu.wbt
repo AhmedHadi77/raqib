@@ -1,0 +1,4 @@
+    # STEP 7 - MPU6050 motion sensor: flat, at the centre of the chassis. Webots splits it into three devices.
+    InertialUnit { name "imu" }
+    Gyro { name "gyro" }
+    Accelerometer { name "accelerometer" }

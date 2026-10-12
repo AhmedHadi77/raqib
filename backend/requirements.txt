@@ -1,0 +1,14 @@
+# CORE - small download, enough to run the whole system (offline planner, mock VLM, lite memory)
+fastapi>=0.115
+uvicorn>=0.30
+websockets>=12
+pydantic>=2.7
+pydantic-settings>=2.3
+PyJWT>=2.8
+paho-mqtt>=2.1,<3
+httpx>=0.27
+langgraph>=0.6
+langchain-core>=0.3
+amqtt>=0.11          # embedded dev broker (EMBEDDED_BROKER=true)
+segno>=1.6           # QR code on the /connect pairing page
+python-multipart>=0.0.9  # voice uploads from the app

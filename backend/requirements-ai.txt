@@ -1,0 +1,9 @@
+# EXTRAS - real AI providers + ChromaDB vector database (~60 MB download)
+# Install when you have a good connection:  install_extras.bat   (or pip install -r requirements-ai.txt)
+langchain-openai>=0.3
+langchain-google-genai>=2.0
+langchain-ollama>=0.3
+chromadb>=1.0
+# Optional: the proposal's sentence-transformers backend (pulls PyTorch, ~1 GB).
+# Without it Chroma runs the SAME all-MiniLM-L6-v2 model through ONNX.
+# sentence-transformers>=3.0

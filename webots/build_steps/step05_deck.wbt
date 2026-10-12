@@ -1,0 +1,13 @@
+    # STEP 5 - top deck with the electronics: battery low in the chassis, Raspberry Pi + UPS hat and driver boards on top.
+    Pose {
+      translation 0 0 0.101
+      children [ Shape { appearance PBRAppearance { baseColor 0.12 0.78 0.89 roughness 0.4 metalness 0 } geometry Box { size 0.2 0.105 0.012 } } ]
+    }
+    Pose {
+      translation -0.06 0 0.122
+      children [ Shape { appearance PBRAppearance { baseColor 0.1 0.45 0.2 roughness 0.6 metalness 0 } geometry Box { size 0.085 0.056 0.03 } } ]
+    }
+    Pose {
+      translation 0.045 0 0.113
+      children [ Shape { appearance PBRAppearance { baseColor 0.15 0.2 0.55 roughness 0.6 metalness 0 } geometry Box { size 0.043 0.043 0.012 } } ]
+    }

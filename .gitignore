@@ -1,0 +1,22 @@
+# secrets and per-machine settings - never commit
+.env
+backend/.env
+edge/config.local.yaml
+infra/certs/*.key
+# environments, caches, build output
+.venv/
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+mobile/android/
+mobile/ios/
+mobile/dist/
+mobile/.expo/
+apk-out/
+*.pyc
+# runtime data
+backend/data/
+data/
+*.log
+raqib-robot.zip
+webots/**/my_robot*.wbt

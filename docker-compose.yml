@@ -1,0 +1,60 @@
+# Full stack:   docker compose up --build                 (broker + backend)
+# + simulated robot:  docker compose --profile sim up --build
+# Then point the mobile app at http://<your-laptop-ip>:8000
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    restart: unless-stopped
+    ports:
+      - "1883:1883"     # plain MQTT (username/password) - LAN / dev
+      - "8883:8883"     # MQTT over TLS - enable in infra/mosquitto/config/mosquitto.conf after generating certs
+    environment:
+      BACKEND_MQTT_PASSWORD: ${BACKEND_MQTT_PASSWORD:-backend-secret}
+      ROBOT_MQTT_PASSWORD: ${ROBOT_MQTT_PASSWORD:-robot01-secret}
+    volumes:
+      - ./infra/mosquitto/config:/mosquitto/config:ro
+      - ./infra/certs:/mosquitto/certs:ro
+      - mosquitto-data:/mosquitto/data
+    # create the password file from the env vars at start-up, then run the broker
+    command: >
+      sh -c "mosquitto_passwd -c -b /mosquitto/data/passwd backend $$BACKEND_MQTT_PASSWORD &&
+             mosquitto_passwd -b /mosquitto/data/passwd robot01 $$ROBOT_MQTT_PASSWORD &&
+             chown mosquitto:mosquitto /mosquitto/data/passwd && chmod 0700 /mosquitto/data/passwd &&
+             exec mosquitto -c /mosquitto/config/mosquitto.conf"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: backend
+      MQTT_PASSWORD: ${BACKEND_MQTT_PASSWORD:-backend-secret}
+      EMBEDDED_BROKER: "false"
+      DATA_DIR: /data
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/data
+    depends_on:
+      - mosquitto
+
+  robot-sim:
+    profiles: ["sim"]
+    build: ./edge
+    restart: unless-stopped
+    environment:
+      ROBOT_SIMULATION: "true"
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_USERNAME: robot01
+      MQTT_PASSWORD: ${ROBOT_MQTT_PASSWORD:-robot01-secret}
+    depends_on:
+      - mosquitto
+
+volumes:
+  mosquitto-data:
+  backend-data:

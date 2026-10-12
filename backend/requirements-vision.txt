@@ -1,0 +1,3 @@
+# Exam proctoring on the server PC: head direction (Face Landmarker) + phones / books (Object Detector).
+# Runs offline, about 50 ms per photo on a normal laptop. Models (~8 MB) download once into backend/data/models.
+mediapipe>=0.10.14

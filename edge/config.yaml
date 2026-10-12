@@ -1,0 +1,139 @@
+# =====================================================================
+#  AI Agent Inspection Robot - Edge (Raspberry Pi) configuration
+# =====================================================================
+#  THE ONE SWITCH THAT MATTERS WHEN YOUR HARDWARE ARRIVES:
+#     simulation: true   -> runs anywhere (laptop), fake robot + fake sensors
+#     simulation: false  -> runs on the Raspberry Pi with the real components
+#  You can also override it from the command line:  python -m robot.main --real
+# =====================================================================
+
+robot_id: robot01
+simulation: true
+
+mqtt:
+  host: localhost          # IP / hostname of the machine running the broker (your laptop or cloud VM)
+  port: 1883               # 8883 when tls: true
+  tls: false
+  ca_cert: null            # e.g. ../infra/certs/ca.crt when tls: true
+  client_cert: null        # optional mutual-TLS client cert
+  client_key: null
+  username: robot01
+  password: robot01-secret
+  keepalive: 20
+
+telemetry_hz: 2            # telemetry messages per second
+
+safety:
+  stop_distance_cm: 15     # T-01: robot must halt before 15 cm clearance
+  clear_distance_cm: 22    # hysteresis: obstacle considered gone above this
+  side_stop_distance_cm: 10
+  loop_hz: 100             # dedicated safety thread frequency
+  cloud_timeout_s: 10      # T-09: Safe Hold after 10 s without cloud heartbeat
+  low_battery_pct: 10
+
+motion:
+  max_speed_mps: 0.5       # scope: ~0.5 m/s
+  default_speed: 0.6       # fraction of max (0..1)
+  turn_speed: 0.5
+  min_power: 0.25          # lowest wheel power that still moves the robot (raise to ~0.4 for real 4WD)
+  wheel_diameter_m: 0.065
+  wheel_base_m: 0.15
+  encoder_ticks_per_rev: 20      # slots on the photoelectric encoder disc
+  heading_kp: 0.02               # heading-hold gain while driving straight
+  avoid_max_attempts: 3          # reactive avoidance retries during go_to_zone
+  teleop_deadman_s: 0.6          # manual drive stops if no new drive command
+
+environment:
+  poll_hz: 1
+  warmup_s: 20             # settling time at each new inspection stop (sim uses sim_warmup_s)
+  sim_warmup_s: 2
+  window: 10               # sliding-average window (samples)
+  comfort_temp_c: [22.0, 26.0]
+  comfort_rh_pct: [40.0, 60.0]
+  overcooled_below_c: 20.0       # empty + very cold room => AC energy waste
+  aqi_elevated: 100
+  aqi_warning: 150         # AQI > 150 => WARNING (discomfort hazard)
+  aqi_hazard: 300          # AQI > 300 => HAZARD (ventilate / evacuate)
+  gas_baseline_ohm: null   # set after burn-in (python -m hwtest.test_env --burn-in)
+  mq135_r0: 76.63          # calibrate in clean air (python -m hwtest.test_env --calibrate-mq135)
+  mq135_warning_ppm: 1000
+  mq135_hazard_ppm: 2000
+
+camera:
+  hfov_deg: 62.2           # Pi Camera v2 horizontal field of view (v3: 66)
+  sim_source: render       # simulation only: render | webcam (use the PC's webcam as the robot camera)
+  sim_webcam_index: 0
+  width: 640
+  height: 480
+  fps: 15
+  snapshot_size: 512       # VLM snapshots (512 or 1024)
+  jpeg_quality: 80
+
+audio:
+  sample_rate: 16000
+  window_s: 1.0
+  model_path: models/campus-audio.eim   # Edge Impulse model (download on the Pi)
+  db_calibration_offset: 83.0           # dBFS -> approx dB SPL; calibrate with a phone SPL meter
+  directional_mic: true                 # cardioid mic facing forward -> sound_scan can find where talking comes from
+  label_map:                            # Edge Impulse label -> canonical class
+    quiet: quiet_room
+    quiet_room: quiet_room
+    ac: ac_fan
+    ac_fan: ac_fan
+    fan: ac_fan
+    crowd: crowd
+    alarm: alarm
+    alarm_leak: alarm
+    speech: speech
+    talking: speech
+    voice: speech
+
+# Named inspection stops (dead-reckoning coordinates in metres from the HOME position).
+# Measure these with a tape in the real building and update them.
+zones:
+  Home:          {x: 0.0, y: 0.0, radius: 0.8}
+  IoT_Lab:       {x: 3.0, y: 0.0, radius: 1.2}
+  LectureHall_B: {x: 6.0, y: 0.0, radius: 1.2}
+  LectureHall_A: {x: 9.0, y: 0.0, radius: 1.2}
+  Exam_Hall:     {x: 13.0, y: 0.0, radius: 2.0,
+                  patrol: [[11.0, 0.0], [12.8, 0.0], [15.0, 0.0]]}   # exam monitor route along the aisle
+
+# Webots 3D simulator (python -m robot.main --webots, or start_robot_webots.bat)
+webots:
+  home: null                   # Webots install folder; null = find it (C:\Program Files\Webots)
+  camera_period_ms: 64
+  connect_timeout_s: 120
+  # the rooms' screens, benches and exit doors are on the north wall: face it when inspecting
+  view_headings: {Home: 90, IoT_Lab: 90, LectureHall_B: 90, LectureHall_A: 90, Exam_Hall: 0}
+  partitions: [1.5, 4.5, 7.0, 10.5]   # x of the half walls between rooms (2 m doorways on the corridor line)
+
+# ---------------------------------------------------------------------
+# Real hardware wiring (BCM GPIO numbers / I2C addresses). See docs/WIRING.md
+# ---------------------------------------------------------------------
+hardware:
+  i2c_bus: 1
+  pca9685_address: 0x40
+  pca9685_freq_hz: 50          # shared by servos (need 50 Hz) and L298N enable PWM
+  motor_left:  {pwm_channel: 0, in1: 17, in2: 27, invert: false}    # L298N ENA / IN1 / IN2
+  motor_right: {pwm_channel: 1, in1: 22, in2: 23, invert: false}    # L298N ENB / IN3 / IN4
+  servo_pan:  {channel: 14, min_us: 500, max_us: 2400}
+  servo_tilt: {channel: 15, min_us: 500, max_us: 2400}
+  ultrasonic:
+    left:   {trigger: 12, echo: 16}
+    center: {trigger: 24, echo: 25}
+    right:  {trigger: 20, echo: 21}
+  encoder_left_pin: 5
+  encoder_right_pin: 6
+  mpu6050_address: 0x68
+  bme680_address: 0x76         # 0x77 on some breakout boards
+  ads1115_address: 0x48        # ADC needed for the MQ-135 analog output (Pi has no ADC)
+  mq135_channel: 0
+  mq135_load_resistor_kohm: 10.0
+  mq135_divider_gain: 1.5      # MQ-135 AOUT (0-5V) -> 10k/20k divider -> ADS1115; volts x1.5 = sensor volts
+  ups_ina219_address: 0x42     # battery gauge on most Pi UPS hats; null to disable
+  battery_cells: 3
+  camera: picamera2            # picamera2 | opencv
+  opencv_camera_index: 0
+  microphone_device: null      # sounddevice name/index, null = default
+  speaker_tts: espeak-ng
+  gpio_pin_factory: auto       # auto = pigpio if its service runs (best HC-SR04 timing), else lgpio

@@ -1,0 +1,108 @@
+{
+  "expo": {
+    "name": "Raqib",
+    "slug": "inspection-robot",
+    "version": "2.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.raqib.robot",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "NSCameraUsageDescription": "The camera is used only to scan the pairing QR code shown by the robot server.",
+        "NSMicrophoneUsageDescription": "The microphone is used for spoken commands to the robot.",
+        "NSSpeechRecognitionUsageDescription": "Speech recognition turns your spoken commands into text."
+      },
+      "buildNumber": "4"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D1530",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.raqib.robot",
+      "versionCode": 4,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS",
+        "VIBRATE",
+        "INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Raqib",
+      "shortName": "Raqib",
+      "themeColor": "#0D1530",
+      "backgroundColor": "#0D1530",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      "@config-plugins/react-native-webrtc",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-sharing",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 150,
+          "resizeMode": "contain",
+          "backgroundColor": "#0D1530",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#080D1D"
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "The camera is used only to scan the pairing QR code shown by the robot server.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#3D63FF",
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "The microphone is used for spoken commands to the robot."
+        }
+      ]
+    ],
+    "scheme": "raqib",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "defaultServerUrl": "http://192.168.1.100:8000",
+      "defaultRobotId": "robot01"
+    },
+    "description": "Raqib - an AI inspection robot for facilities: energy waste, comfort, air quality and safety audits, by voice or touch."
+  }
+}

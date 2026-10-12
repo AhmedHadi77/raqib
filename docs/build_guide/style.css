@@ -1,0 +1,80 @@
+/* Raqib build guide - A4 print styles. Navy + PCB green, Inter for text, DejaVu Sans Mono for commands. */
+:root { --navy:#0f1d33; --ink:#16202a; --muted:#5b6670; --line:#d3d9df; --pcb:#1f7a4d; --accent:#2d6be0; --warn:#c0392b; --paper:#ffffff; --soft:#f2f5f8; }
+@page { size: A4; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, "DejaVu Sans", sans-serif; font-size: 10.2pt; line-height: 1.5; }
+h1, h2, h3, h4 { font-family: "Inter Display", Inter, sans-serif; line-height: 1.15; margin: 0; }
+p { margin: 0 0 7px; }
+code, pre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.6pt; }
+code { background: var(--soft); padding: 1px 4px; border-radius: 3px; }
+svg { display: block; width: 100%; height: auto; }
+
+.page, .step { break-before: page; }
+section { position: relative; }
+
+/* cover */
+.cover { background: var(--navy); color: #fff; height: 258mm; overflow: hidden; padding: 18mm 14mm; border-radius: 6px; display: flex; flex-direction: column; }
+.cover .kicker { letter-spacing: .18em; font-size: 9pt; font-weight: 700; color: #7fb3ff; }
+.cover h1 { font-size: 46pt; font-weight: 800; letter-spacing: -0.02em; margin: 10px 0 8px; }
+.cover .sub { font-size: 13pt; color: #c5d3ea; max-width: 140mm; }
+.cover .coverart { margin: 10mm 0 0; display: flex; justify-content: center; }
+.cover .coverart svg { width: 150mm; height: 107mm; }
+.cover .covermeta { margin-top: auto; display: flex; justify-content: space-between; font-size: 9pt; color: #b7c6df; border-top: 1px solid #2c3f5f; padding-top: 6mm; }
+
+/* headings */
+h2.sec { font-size: 21pt; font-weight: 800; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+h2.sec span { background: var(--navy); color: #fff; width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14pt; }
+h3 { font-size: 12.5pt; font-weight: 700; margin: 12px 0 6px; }
+.toc h2 { font-size: 22pt; margin-bottom: 10px; }
+.tocl { font-size: 11.5pt; line-height: 2; padding-left: 20px; }
+
+/* figures */
+figure { margin: 8px 0 12px; break-inside: avoid; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 4px; }
+
+/* notes / warnings / checks */
+.note, .warn, .check { border-radius: 8px; padding: 9px 12px; margin: 10px 0; break-inside: avoid; }
+.note { background: #eef4fd; border-left: 4px solid var(--accent); }
+.warn { background: #fdf0ee; border-left: 4px solid var(--warn); }
+.check { background: #eef8f1; border-left: 4px solid var(--pcb); }
+.note ul, .warn ul, .check ul { margin: 4px 0 0; padding-left: 18px; }
+.check ul { list-style: none; padding-left: 4px; }
+.check li { margin: 2px 0; }
+.check.big li { font-size: 11pt; margin: 6px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 9pt; }
+.legend i { width: 22px; height: 6px; border-radius: 3px; display: inline-block; }
+
+/* tables */
+table.bom { width: 100%; border-collapse: collapse; font-size: 8.8pt; margin: 6px 0; }
+table.bom th { text-align: left; background: var(--navy); color: #fff; padding: 5px 6px; font-weight: 600; }
+table.bom td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.bom tr { break-inside: avoid; }
+table.bom .grp td { background: #e6edf5; font-weight: 800; color: var(--navy); padding-top: 6px; }
+table.bom .tot td { font-weight: 800; font-size: 10pt; border-top: 2px solid var(--navy); }
+table.bom .why { color: var(--muted); font-size: 8pt; }
+table.bom .num { color: var(--muted); width: 18px; }
+.c { text-align: center; } .r { text-align: right; white-space: nowrap; }
+table.tools { max-width: 140mm; }
+table.trouble td:first-child { width: 30%; }
+
+/* component cards */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; break-inside: avoid; }
+.card .pic { background: #f6f8fa; border-radius: 8px; padding: 8px; height: 46mm; display: flex; align-items: center; justify-content: center; margin-bottom: 7px; }
+.card .pic svg { max-height: 42mm; width: auto; max-width: 100%; }
+.card h4 { font-size: 11.5pt; margin-bottom: 3px; }
+.card p { font-size: 8.8pt; margin: 0 0 3px; }
+.card .pins { color: #2b3640; }
+.card .tip { color: #6a4f00; background: #fff6da; border-radius: 6px; padding: 3px 6px; }
+
+/* steps */
+.stephead { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
+.stepn { background: var(--pcb); color: #fff; font-weight: 800; font-size: 18pt; min-width: 40px; height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; }
+.step h2 { font-size: 17pt; font-weight: 800; }
+.need { color: var(--muted); font-size: 9.2pt; margin: 3px 0 0; }
+.step ol { padding-left: 20px; margin: 4px 0 8px; }
+.step li { margin: 2px 0; }
+pre.cmd { background: #101820; color: #c9f0d8; padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; margin: 6px 0 8px; break-inside: avoid; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.end { text-align: center; font-size: 12pt; margin-top: 14px; color: var(--muted); }

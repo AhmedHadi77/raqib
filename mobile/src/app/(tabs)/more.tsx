@@ -48,10 +48,14 @@ export default function More() {
             <ListRow icon="shield-account-outline" title="Exam monitor"
               detail="Patrols the exam: phones, notes, earpieces, wandering eyes, talking" onPress={() => router.push('/monitor')} />
             <Divider inset={48} />
-            <ListRow icon="chip" title="Wiring Bench"
-              detail="Wire every sensor to the Raspberry Pi; the simulated robot works only when it is wired right"
-              onPress={openBench} />
-            <Divider inset={48} />
+            {!serverUrl.startsWith('demo:') ? (
+              <>
+                <ListRow icon="chip" title="Wiring Bench"
+                  detail="Wire every sensor to the Raspberry Pi; the simulated robot works only when it is wired right"
+                  onPress={openBench} />
+                <Divider inset={48} />
+              </>
+            ) : null}
             <ListRow icon="chart-timeline-variant" title="Insights" detail="Trends and search across past inspections" onPress={() => router.push('/insights')} />
             <Divider inset={48} />
             <ListRow icon="calendar-clock" title="Scheduled patrols"

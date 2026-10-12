@@ -23,6 +23,8 @@ async function probe(url: string, ms: number): Promise<FoundServer | null> {
   }
 }
 
+const PRIVATE = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
+
 export async function phoneAddress(): Promise<string | null> {
   if (Platform.OS === 'web') return null;
   try {
@@ -33,6 +35,40 @@ export async function phoneAddress(): Promise<string | null> {
   }
 }
 
+/** Every local network address of the phone, including its own hotspot (Wi-Fi info alone reports 0.0.0.0
+ *  while the phone is sharing its connection). Uses the WebRTC engine's list of host addresses. */
+async function allPhoneAddresses(): Promise<string[]> {
+  const out = new Set<string>();
+  const wifi = await phoneAddress();
+  if (wifi) out.add(wifi);
+  let RTC: any = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    RTC = require('react-native-webrtc');
+  } catch {
+    RTC = null;
+  }
+  if (RTC?.RTCPeerConnection) {
+    let pc: any = null;
+    try {
+      pc = new RTC.RTCPeerConnection({ iceServers: [] });
+      const grab = (text: string) => {
+        for (const m of text.matchAll(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) \d+ typ host/g)) out.add(m[1]);
+      };
+      pc.addEventListener('icecandidate', (e: any) => e?.candidate?.candidate && grab(e.candidate.candidate));
+      pc.createDataChannel('find');
+      await pc.setLocalDescription(await pc.createOffer({}));
+      await new Promise((r) => setTimeout(r, 1500));
+      grab(pc.localDescription?.sdp ?? '');
+    } catch {
+      /* no WebRTC: Wi-Fi address only */
+    } finally {
+      try { pc?.close(); } catch { /* closed */ }
+    }
+  }
+  return [...out].filter((ip) => PRIVATE.test(ip));
+}
+
 export async function findServer(opts: {
   known?: string[];
   port?: number;
@@ -40,17 +76,23 @@ export async function findServer(opts: {
   cancelled?: () => boolean;
 } = {}): Promise<FoundServer | null> {
   const port = opts.port ?? 8000;
-  const known = Array.from(new Set([...(opts.known ?? []).filter(Boolean), `http://raqib.local:${port}`]));
+  // the robot's own Wi-Fi (Raqib-Robot) always gives the robot 10.42.0.1; Pi hostnames for networks with mDNS
+  const known = Array.from(new Set([...(opts.known ?? []).filter(Boolean), `http://10.42.0.1:${port}`,
+    `http://robot01.local:${port}`, `http://raqib.local:${port}`]));
   const quick = (await Promise.all(known.map((u) => probe(u.replace(/\/+$/, ''), 1500)))).filter(Boolean) as FoundServer[];
   if (quick.length) return quick.sort((a, b) => b.online - a.online)[0];
 
-  const ip = await phoneAddress();
-  if (!ip) return null;
-  const parts = ip.split('.');
-  const prefix = parts.slice(0, 3).join('.');
-  const own = Number(parts[3]);
-  const hosts: number[] = [];
-  for (let i = 1; i <= 254; i++) if (i !== own) hosts.push(i);
+  const ips = await allPhoneAddresses();
+  if (!ips.length) return null;
+  const hosts: string[] = [];
+  for (const ip of ips) {
+    const parts = ip.split('.');
+    const prefix = parts.slice(0, 3).join('.');
+    for (let i = 1; i <= 254; i++) {
+      const h = `${prefix}.${i}`;
+      if (h !== ip && !hosts.includes(h)) hosts.push(h);
+    }
+  }
 
   let next = 0;
   let checked = 0;
@@ -58,7 +100,7 @@ export async function findServer(opts: {
   const worker = async () => {
     while (next < hosts.length && !found.length && !opts.cancelled?.()) {
       const h = hosts[next++];
-      const f = await probe(`http://${prefix}.${h}:${port}`, 1300);
+      const f = await probe(`http://${h}:${port}`, 1300);
       checked++;
       opts.onProgress?.(checked, hosts.length);
       if (f) found.push(f);

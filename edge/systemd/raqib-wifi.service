@@ -1,0 +1,13 @@
+[Unit]
+Description=Raqib Wi-Fi: join a known network, or make the robot's own Wi-Fi "Raqib-Robot"
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash __EDGE_DIR__/scripts/raqib_wifi.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

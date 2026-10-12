@@ -407,6 +407,7 @@ class ExamMonitor:
             self._save()
             await self._emit(robot_id, "monitoring_started", {"zone": zone, "minutes": s["minutes"], "mode": s["mode"]})
             forward = True
+            blocked = 0
             while time.time() < s["ends_at"]:
                 order = list(range(len(route))) or [None]
                 if not forward:
@@ -418,7 +419,19 @@ class ExamMonitor:
                     s["waypoint"] = (wi + 1) if wi is not None else None
                     if point and len(route) > 1:
                         s["phase"] = "patrolling"
-                        await tools._cmd("go_to_point", x=point[0], y=point[1], timeout=120)
+                        try:
+                            await tools._cmd("go_to_point", x=point[0], y=point[1], timeout=120)
+                            blocked = 0
+                        except Exception as e:  # noqa: BLE001 - a student or bag in the aisle must not end the exam watch
+                            if any(w in str(e).lower() for w in ("emergency", "estop", "e-stop", "safe hold", "safe_hold")):
+                                raise
+                            blocked += 1
+                            log.warning("patrol: could not reach %s (%s) - watching from here instead", point, e)
+                            if blocked >= 3:          # aisle keeps being blocked: stay put and watch from here
+                                route = []
+                                s["route"] = route
+                                s["mode_note"] = "aisle blocked - watching from one place"
+                                break
                     for half in (0, 1):
                         if half:
                             await tools._cmd("turn", angle_deg=180)

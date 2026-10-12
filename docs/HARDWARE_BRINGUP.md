@@ -10,14 +10,21 @@ Run the commands on the Raspberry Pi, inside `edge/` with the venv active (`sour
 
 ## 0. Prepare the Pi (≈ 30 min, once)
 
-1. Flash **Raspberry Pi OS (64-bit)** with Raspberry Pi Imager. In the imager's settings, set the hostname (`robot01`), enable SSH, and enter **the same Wi-Fi your PC uses**.
-2. On the PC, double-click `pack_robot_for_pi.bat`. It makes `raqib-robot.zip`. Copy it to the Pi (USB stick, or WinSCP to `robot01.local`).
-3. On the Pi: `unzip raqib-robot.zip -d ~/edge && cd ~/edge && bash scripts/install_pi.sh`
+The finished robot needs **no laptop**: the Raspberry Pi runs the robot program *and* its own server, and the phone
+app talks straight to the robot.
+
+1. Flash **Raspberry Pi OS (64-bit)** with Raspberry Pi Imager. In the imager's settings set the hostname (`robot01`),
+   enable SSH, and add a Wi-Fi: your **phone's hotspot** is the best choice (the robot then has internet for the AI
+   wherever you go). Home or campus Wi-Fi works too.
+2. On the PC, double-click `pack_robot_for_pi.bat`. It makes `raqib-robot.zip` (robot program + server; your AI key is
+   not included). Copy it to the Pi (USB stick, or WinSCP to `robot01.local`).
+3. On the Pi: `unzip raqib-robot.zip -d ~/raqib && cd ~/raqib && bash edge/scripts/install_pi.sh`
 4. `sudo reboot`
 
-That is all the setup. The installer sets the robot to **real hardware**, makes it **start at every power-on**, and sets
-`mqtt: host: auto`: the robot listens for the PC's announcement on the Wi-Fi and connects by itself, so you never type an
-IP address. On the PC run `allow_robot_connections.bat` once (Windows Firewall) and start `start_backend.bat`.
+From then on, at every power-on the robot starts its server and program by itself and says its address out loud.
+Wi-Fi: it joins a known network; if none is in range for a minute it makes its **own Wi-Fi "Raqib-Robot"**
+(password `raqib1234`, robot address 10.42.0.1). Either way, open the app and tap **Find automatically**.
+Add another network later: `sudo nmcli dev wifi connect "NAME" password "PASSWORD"`.
 
 > While you run the tests below, stop the background robot program so the two don't fight over the pins:
 > `sudo systemctl stop inspection-robot`. Start it again with `sudo systemctl start inspection-robot`.
@@ -88,14 +95,17 @@ Until then, the built-in heuristic classifier is used automatically.
 
 ## 7. Connect to the app
 
-There is nothing to configure. With `start_backend.bat` running on the PC and the robot switched on (same Wi-Fi):
+There is nothing to configure. Switch the robot on, wait about a minute (it says "Raqib is ready" and its address):
 
-1. The robot finds the PC within a few seconds (`journalctl -u inspection-robot -f` shows "Found the Raqib server").
-2. In the app, the sign-in screen finds the PC by itself (or tap **Find automatically**).
-3. **More > Robot health** lists every part. A part you plug in later: tap **Re-check parts**.
+1. Put the phone on the same Wi-Fi as the robot: the phone's own hotspot, the same home/campus Wi-Fi, or the
+   robot's Wi-Fi "Raqib-Robot".
+2. In the app, sign in (it finds the robot by itself, or tap **Find automatically**). Default login: admin / admin123.
+3. **More > AI settings**: paste your Gemini key once; it is saved on the robot.
+4. **More > Robot health** lists every part. A part you plug in later: tap **Re-check parts**.
 
-If your network blocks broadcasts (some campus Wi-Fi), write the PC's address in `edge/config.local.yaml` on the Pi
-instead of `auto` (`mqtt: host: 192.168.1.100`), then `sudo systemctl restart inspection-robot`.
+Logs on the Pi: `journalctl -u raqib-server -f` (server) and `journalctl -u inspection-robot -f` (robot program).
+Prefer the old setup with the server on a PC? Delete `~/raqib/backend` before running the installer: the robot then
+looks for `start_backend.bat` on the Wi-Fi instead.
 
 ## 8. Map your real rooms
 
@@ -111,6 +121,6 @@ Dashboard and write them into `zones:` in `config.yaml`, using the same names th
 
 - [ ] The STOP button in the app stops the robot (and **RESET E-STOP** is required to move again)
 - [ ] A hand placed 30 cm in front of a driving robot stops it before 15 cm (T-01)
-- [ ] Turning off the PC's Wi-Fi stops the robot within ~10 s, and the state becomes SAFE_HOLD (T-09)
+- [ ] Stopping the server (`sudo systemctl stop raqib-server`) stops the robot within ~10 s, and the state becomes SAFE_HOLD (T-09)
 - [ ] The battery level is shown, and you have a charged spare set of 18650 cells
 - [ ] `JWT_SECRET` and the default passwords in `backend/.env` have been changed

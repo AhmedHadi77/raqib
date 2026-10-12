@@ -12,7 +12,8 @@ import VoiceButton from '@/components/VoiceButton';
 import { usePalette, usePolling } from '@/hooks';
 import { api } from '@/services/api';
 import { ask } from '@/services/assistant';
-import { useAppSelector } from '@/store';
+import { isDemo } from '@/demo/demo';
+import { sessionActions, useAppDispatch, useAppSelector } from '@/store';
 import { COMFORT_LABEL, fonts, Level, levelColors, levelOf, pretty, STATE_LABEL, timeAgo, ZONE_LABEL } from '@/theme';
 
 const EVENT_LABEL: Record<string, string> = {
@@ -33,6 +34,8 @@ const EVENT_LABEL: Record<string, string> = {
 
 export default function Home() {
   const p = usePalette();
+  const dispatch = useAppDispatch();
+  const demo = useAppSelector((st) => isDemo(st.session.serverUrl));
   const { robotId, role } = useAppSelector((s) => s.session);
   const { telemetry: t, online, wsConnected, events, info } = useAppSelector((s) => s.robot);
   const busy = useAppSelector((s) => s.chat.busy);
@@ -89,6 +92,15 @@ export default function Home() {
           </View>
           <EStopButton compact />
         </View>
+
+        {demo ? (
+          <Pressable onPress={() => { dispatch(sessionActions.setServer({ serverUrl: 'http://192.168.1.100:8000' })); dispatch(sessionActions.loggedOut()); }}
+            style={[styles.demo, { backgroundColor: p.primarySoft }]}>
+            <MaterialCommunityIcons name="robot-outline" size={20} color={p.primary} />
+            <Body small style={{ flex: 1 }}>Demo robot inside this phone. Everything works the same as with the real robot.</Body>
+            <Text style={{ fontFamily: fonts.bodyStrong, color: p.primary, fontSize: 13 }}>Use real robot</Text>
+          </Pressable>
+        ) : null}
 
         {/* ---------- robot status */}
         <View style={{ marginTop: 18 }}>
@@ -303,6 +315,7 @@ function RoomSheet({ zone, status, canDrive, onClose, onAsk, onDrive }: {
 
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+  demo: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, padding: 12, borderRadius: 14 },
   stateDot: { width: 8, height: 8, borderRadius: 4 },
   headline: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, letterSpacing: -0.8, marginTop: 4 },
   progress: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },

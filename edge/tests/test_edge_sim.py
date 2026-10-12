@@ -131,7 +131,9 @@ def test_sound_scan_faces_the_person_talking():
     try:
         with w.lock:
             w.x, w.y, w.theta = 13.0, 0.0, 0.0
-        w.t0 = time.monotonic() - 8          # student_back_left (14.2, 1.35) is talking now
+        # only student_back_left (14.2, 1.35) talks, for the whole scan: a slow test machine must not
+        # let the talking schedule switch speakers half way through the 360 degree scan
+        w.sources = [dict(src, on_s=1e9, phase_s=0) for src in w.sources if src["name"] == "student_back_left"]
         r = app.run_command("sound_scan", step_deg=45, seconds=0.6)
         assert r["status"] == "ok" and r["result"]["voice_like"]
         with w.lock:

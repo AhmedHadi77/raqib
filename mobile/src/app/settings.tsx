@@ -105,7 +105,7 @@ export default function Settings() {
                 onPress={async () => {
                   setFinding(true);
                   try {
-                    const f = await findServer({ known: [server, s.serverUrl] });
+                    const f = await findServer({ known: [server, s.serverUrl].filter((u) => !u.startsWith('demo:')) });
                     if (!f) { setSnack('No Raqib server found on this Wi-Fi. Is start_backend.bat running on the PC?'); return; }
                     setServer(f.url);
                     dispatch(sessionActions.setServer({ serverUrl: f.url }));

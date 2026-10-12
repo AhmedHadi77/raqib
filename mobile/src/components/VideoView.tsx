@@ -92,7 +92,8 @@ export default function VideoView() {
   const privacy = useAppSelector((s) => s.robot.telemetry?.privacy_mode);
   const [rtcFailed, setRtcFailed] = useState<string | null>(null);
   const onFail = useCallback((e: string) => setRtcFailed(e), []);
-  const useRtc = RTC && !rtcFailed;
+  const rtcOnRobot = useAppSelector((s) => (s.robot.info as any)?.webrtc) !== false;
+  const useRtc = RTC && !rtcFailed && rtcOnRobot;
   return (
     <View style={styles.box}>
       {!online ? (

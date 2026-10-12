@@ -13,7 +13,8 @@ export default function VideoView() {
   const webots = useAppSelector((s) => s.robot.info?.simulator === 'webots');
   const privacy = useAppSelector((s) => s.robot.telemetry?.privacy_mode);
   const ref = useRef<HTMLVideoElement | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const rtcOnRobot = useAppSelector((s) => (s.robot.info as any)?.webrtc) !== false;
+  const [err, setErr] = useState<string | null>(rtcOnRobot ? null : 'no webrtc');
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
 
@@ -31,7 +32,11 @@ export default function VideoView() {
   }, [err, online]);
 
   useEffect(() => {
-    if (!online || privacy) return;
+    if (!rtcOnRobot) setErr('no webrtc');
+  }, [rtcOnRobot]);
+
+  useEffect(() => {
+    if (!online || privacy || !rtcOnRobot) return;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.ontrack = (e) => {
@@ -52,7 +57,7 @@ export default function VideoView() {
       }
     })();
     return () => pc.close();
-  }, [online, robotId, privacy]);
+  }, [online, robotId, privacy, rtcOnRobot]);
 
   return (
     <View style={styles.box}>

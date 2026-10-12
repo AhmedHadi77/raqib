@@ -86,8 +86,36 @@ class RobotApp:
         if self.mqtt:
             self.mqtt.start()
         self._telemetry_t.start()
-        self.hw.speaker.say("Inspection robot online")
+        if self.hw.simulated:
+            self.hw.speaker.say("Inspection robot online")
+        else:
+            threading.Thread(target=self._announce_address, daemon=True, name="announce").start()
         log.info("Robot %s started (simulation=%s)", self.robot_id, self.hw.simulated)
+
+    def _announce_address(self):
+        """Real robot: say its network address out loud once it has one, so the phone can always reach it."""
+        import socket
+
+        ip = None
+        for _ in range(60):
+            if self._stop.is_set():
+                return
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("10.255.255.255", 1))
+                ip = s.getsockname()[0]
+                s.close()
+            except OSError:
+                ip = None
+            if ip and not ip.startswith("127."):
+                break
+            time.sleep(1)
+        if ip and not ip.startswith("127."):
+            spoken = " dot ".join(ip.split("."))
+            self.hw.speaker.say(f"Raqib is ready. My address is {spoken}")
+            log.info("Robot address: http://%s:8000", ip)
+        else:
+            self.hw.speaker.say("Raqib is ready")
 
     def shutdown(self):
         log.info("shutting down...")

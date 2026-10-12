@@ -186,16 +186,19 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 
 Follow **[docs/HARDWARE_BRINGUP.md](docs/HARDWARE_BRINGUP.md)**. In short:
 
-1. Flash Raspberry Pi OS 64-bit (same Wi-Fi as the PC). On the PC run `pack_robot_for_pi.bat`, copy
-   `raqib-robot.zip` to the Pi and run `bash scripts/install_pi.sh`. The robot now starts at every power-on.
+1. Flash Raspberry Pi OS 64-bit (add your phone's hotspot as its Wi-Fi). On the PC run `pack_robot_for_pi.bat`, copy
+   `raqib-robot.zip` to the Pi and run `bash edge/scripts/install_pi.sh`. The Pi now runs the robot **and its own
+   server**: no laptop needed, it starts at every power-on, and makes its own Wi-Fi "Raqib-Robot" when no known Wi-Fi is around.
 2. Wire the parts using **[docs/WIRING.md](docs/WIRING.md)**. Remember the voltage dividers on the HC-SR04 echo pins and on the MQ-135.
 3. Run the bring-up tests in order: `python -m hwtest.i2c_scan` → `test_motors` → `test_sensors` → `test_env` → `test_camera_audio`.
-4. On the PC: `allow_robot_connections.bat` once, then `start_backend.bat`. **No IP addresses to type**: the PC
-   announces itself on the Wi-Fi, the robot (`mqtt.host: auto`) connects to it, and the app's sign-in screen finds it.
+4. Open the app on the same Wi-Fi and tap **Find automatically**. Paste your AI key once in **More > AI settings**.
 5. Measure the real room positions and put them in `zones:` in `config.yaml`.
 6. Open **More > Robot health** in the app. Every part shows green or red; tap a red one for the fix, and
    **Re-check parts** after plugging one in. Missing parts never stop the robot from starting: it runs with
    what it has, and without its distance sensors it refuses to drive forward (turning and reversing still work).
+
+Before the robot exists, the app's **Try the demo robot** button runs a simulated robot inside the phone, so every
+screen works anywhere with no laptop and no internet.
 
 **Nothing changes in the backend or the mobile app.**
 

@@ -9,6 +9,7 @@ import Svg, { Line } from 'react-native-svg';
 import { Body, Logo, Wordmark } from '@/components/ui';
 import { usePalette } from '@/hooks';
 import { api } from '@/services/api';
+import { DEMO_URL, isDemo } from '@/demo/demo';
 import { findServer, phoneAddress } from '@/services/discover';
 import { sessionActions, useAppDispatch, useAppSelector } from '@/store';
 import { APP_VERSION, BRAND, fonts } from '@/theme';
@@ -72,7 +73,7 @@ export default function Login() {
     setCheck({ ok: true, text: 'Searching your Wi-Fi for the Raqib server…' });
     try {
       const f = await findServer({
-        known: [server, serverUrl],
+        known: [server, serverUrl].filter((u) => !isDemo(u)),
         onProgress: (n, total) => { if (n % 16 === 0) setCheck({ ok: true, text: `Searching your Wi-Fi for the Raqib server… ${Math.round((n / total) * 100)}%` }); },
       });
       if (f) {
@@ -90,6 +91,21 @@ export default function Login() {
     }
   }
 
+  async function tryDemo() {
+    setServer(DEMO_URL);
+    setUsername('admin');
+    setPassword('admin123');
+    setEditServer(false);
+    dispatch(sessionActions.setServer({ serverUrl: DEMO_URL, robotId: 'robot01' }));
+    setCheck({ ok: true, text: 'Demo robot inside this phone' });
+    try {
+      const r = await api.login('admin', 'admin123');
+      dispatch(sessionActions.loggedIn({ token: r.access_token, username: r.username, role: r.role, name: r.name }));
+    } catch (e: any) {
+      setCheck({ ok: false, text: e.message });
+    }
+  }
+
   async function signIn(foundUrl?: string) {
     const retried = foundUrl != null;
     setBusy(true);
@@ -98,7 +114,7 @@ export default function Login() {
       const r = await api.login(username.trim(), password);
       dispatch(sessionActions.loggedIn({ token: r.access_token, username: r.username, role: r.role, name: r.name }));
     } catch (e: any) {
-      if (e.status === 0 && !retried && Platform.OS !== 'web') {
+      if (e.status === 0 && !retried && Platform.OS !== 'web' && !isDemo(foundUrl ?? server)) {
         setBusy(false);
         searched.current = true;
         const url = await autoFind();
@@ -133,6 +149,10 @@ export default function Login() {
               <Button mode="contained" onPress={() => signIn()} loading={busy} disabled={busy || !password || !username}
                 contentStyle={{ paddingVertical: 8 }} labelStyle={{ fontFamily: fonts.bodyStrong, fontSize: 16 }}>
                 Sign in
+              </Button>
+              <Button mode="outlined" icon="robot-outline" onPress={tryDemo} disabled={busy}
+                contentStyle={{ paddingVertical: 4 }}>
+                Try the demo robot (no robot needed)
               </Button>
 
               <View style={[styles.serverBox, { backgroundColor: p.sunken }]}>

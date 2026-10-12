@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
         await S.broker.shutdown()
 
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 app = FastAPI(title=f"{settings.product_name} - AI Inspection Robot API", version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
                    allow_methods=["*"], allow_headers=["*"])

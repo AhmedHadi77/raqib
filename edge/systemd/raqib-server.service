@@ -1,0 +1,16 @@
+[Unit]
+Description=Raqib server on the robot (app API, AI agent, MQTT broker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__BACKEND_DIR__
+ExecStart=__EDGE_DIR__/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

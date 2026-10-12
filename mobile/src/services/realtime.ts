@@ -4,6 +4,8 @@
 import { chatActions, robotActions, store } from '@/store';
 import type { ServerMessage } from '@/types';
 
+import { demoConnect, isDemo } from '@/demo/demo';
+
 import { handleRobotEvent } from './alerts';
 import { speakAck } from './assistant';
 
@@ -11,6 +13,7 @@ let ws: WebSocket | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let stopped = true;
+let demoOff: (() => void) | null = null;
 
 function wsUrl() {
   const { serverUrl, token } = store.getState().session;
@@ -49,6 +52,11 @@ function handle(msg: ServerMessage) {
 
 function connect() {
   if (stopped) return;
+  if (isDemo(store.getState().session.serverUrl)) {
+    demoOff = demoConnect(handle);
+    store.dispatch(robotActions.wsStatus(true));
+    return;
+  }
   try {
     ws = new WebSocket(wsUrl());
   } catch {
@@ -94,6 +102,8 @@ export const realtime = {
     retryTimer = null;
     ws?.close();
     ws = null;
+    demoOff?.();
+    demoOff = null;
   },
   restart() {
     this.stop();

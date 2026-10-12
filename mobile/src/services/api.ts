@@ -19,6 +19,8 @@ import type {
   SearchResponse,
 } from '@/types';
 
+import { demoAsset, DemoError, demoRequest, demoText, isDemo } from '@/demo/demo';
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -34,6 +36,14 @@ function token() {
 }
 
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 15000): Promise<T> {
+  if (isDemo(base())) {
+    try {
+      return (await demoRequest(path, init)) as T;
+    } catch (e: any) {
+      if (e instanceof DemoError) throw new ApiError(e.status, e.message);
+      throw new ApiError(500, e?.message ?? String(e));
+    }
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -59,12 +69,14 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 1500
 
 /** URL with ?token= for <Image> sources and WebSockets (they cannot send headers everywhere). */
 export function authUrl(path: string): string {
+  if (isDemo(base())) return demoAsset(path);
   const sep = path.includes('?') ? '&' : '?';
   return `${base()}${path}${sep}token=${encodeURIComponent(token() ?? '')}`;
 }
 
 /** Fetch a text/HTML endpoint with the auth header (used for the printable report). */
 async function requestText(path: string, timeoutMs = 30000): Promise<string> {
+  if (isDemo(base())) return demoText(path);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -130,6 +142,7 @@ export const api = {
   runSchedule: (id: string) => request<any>(`/schedules/${id}/run`, { method: 'POST' }),
   /** Upload a voice recording; returns the recognised text. */
   transcribe: async (uri: string, mime = 'audio/m4a'): Promise<{ text: string; provider: string; ms: number }> => {
+    if (isDemo(base())) throw new ApiError(503, 'Voice needs the real robot. In the demo, type your command instead.');
     const form = new FormData();
     if (uri.startsWith('blob:') || uri.startsWith('data:')) {
       const blob = await (await fetch(uri)).blob();

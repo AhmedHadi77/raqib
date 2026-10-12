@@ -9,7 +9,7 @@ import Svg, { Line } from 'react-native-svg';
 import { Body, Logo, Wordmark } from '@/components/ui';
 import { usePalette } from '@/hooks';
 import { api } from '@/services/api';
-import { findServer } from '@/services/discover';
+import { findServer, phoneAddress } from '@/services/discover';
 import { sessionActions, useAppDispatch, useAppSelector } from '@/store';
 import { APP_VERSION, BRAND, fonts } from '@/theme';
 
@@ -59,15 +59,15 @@ export default function Login() {
     } catch {
       if (allowSearch && Platform.OS !== 'web' && !searched.current) {
         searched.current = true;
-        return autoFind();
+        return !!(await autoFind());
       }
-      setCheck({ ok: false, text: 'Server not found. Is start_backend.bat running on the PC, on the same Wi-Fi as this phone?' });
+      setCheck({ ok: false, text: 'Server not found. On the PC run connect_phone.bat, keep the phone on the same Wi-Fi, then tap Find automatically.' });
       setEditServer(true);
       return false;
     }
   }
 
-  async function autoFind(): Promise<boolean> {
+  async function autoFind(): Promise<string | null> {
     setSearching(true);
     setCheck({ ok: true, text: 'Searching your Wi-Fi for the Raqib server…' });
     try {
@@ -77,24 +77,35 @@ export default function Login() {
       });
       if (f) {
         setServer(f.url);
-        return await test(f.url, false);
+        return (await test(f.url, false)) ? f.url : null;
       }
-      setCheck({ ok: false, text: 'No server found on this Wi-Fi. Start start_backend.bat on the PC, keep phone and PC on the same Wi-Fi, then tap Find again.' });
+      const ip = await phoneAddress();
+      setCheck({ ok: false, text: ip
+        ? `No server found. This phone is ${ip}, so the PC's address must start with ${ip.split('.').slice(0, 3).join('.')}. On the PC run connect_phone.bat, then tap Find again.`
+        : 'No server found. Connect the phone to the same Wi-Fi as the PC (not mobile data), run connect_phone.bat on the PC, then tap Find again.' });
       setEditServer(true);
-      return false;
+      return null;
     } finally {
       setSearching(false);
     }
   }
 
-  async function signIn() {
+  async function signIn(foundUrl?: string) {
+    const retried = foundUrl != null;
     setBusy(true);
-    dispatch(sessionActions.setServer({ serverUrl: server.trim() }));
+    dispatch(sessionActions.setServer({ serverUrl: (foundUrl ?? server).trim() }));
     try {
       const r = await api.login(username.trim(), password);
       dispatch(sessionActions.loggedIn({ token: r.access_token, username: r.username, role: r.role, name: r.name }));
     } catch (e: any) {
-      setCheck({ ok: false, text: e.status === 401 ? 'Wrong username or password.' : e.message });
+      if (e.status === 0 && !retried && Platform.OS !== 'web') {
+        setBusy(false);
+        searched.current = true;
+        const url = await autoFind();
+        if (url) return signIn(url);
+        return;
+      }
+      setCheck({ ok: false, text: e.status === 401 ? 'Wrong username or password.' : e.status === 0 ? 'The server did not answer. On the PC run connect_phone.bat, then try again.' : e.message });
     } finally {
       setBusy(false);
     }
@@ -117,9 +128,9 @@ export default function Login() {
               <TextInput mode="outlined" label="Username" value={username} onChangeText={setUsername} autoCapitalize="none"
                 autoCorrect={false} left={<TextInput.Icon icon="account-outline" />} />
               <TextInput mode="outlined" label="Password" value={password} onChangeText={setPassword} secureTextEntry={!show}
-                onSubmitEditing={signIn} left={<TextInput.Icon icon="lock-outline" />}
+                onSubmitEditing={() => signIn()} left={<TextInput.Icon icon="lock-outline" />}
                 right={<TextInput.Icon icon={show ? 'eye-off-outline' : 'eye-outline'} onPress={() => setShow(!show)} />} />
-              <Button mode="contained" onPress={signIn} loading={busy} disabled={busy || !password || !username}
+              <Button mode="contained" onPress={() => signIn()} loading={busy} disabled={busy || !password || !username}
                 contentStyle={{ paddingVertical: 8 }} labelStyle={{ fontFamily: fonts.bodyStrong, fontSize: 16 }}>
                 Sign in
               </Button>
@@ -141,7 +152,7 @@ export default function Login() {
                       autoCapitalize="none" autoCorrect={false} keyboardType="url" onBlur={() => test(server, false)} />
                     {Platform.OS !== 'web' ? (
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                        <Button icon="radar" mode="contained-tonal" compact loading={searching} disabled={searching} onPress={autoFind}>
+                        <Button icon="radar" mode="contained-tonal" compact loading={searching} disabled={searching} onPress={() => autoFind()}>
                           Find automatically
                         </Button>
                         <Button icon="qrcode-scan" mode="text" compact onPress={() => router.push('/scan')}>

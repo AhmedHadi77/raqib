@@ -2,7 +2,7 @@
   "expo": {
     "name": "Raqib",
     "slug": "inspection-robot",
-    "version": "2.2.0",
+    "version": "2.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
         "NSMicrophoneUsageDescription": "The microphone is used for spoken commands to the robot.",
         "NSSpeechRecognitionUsageDescription": "Speech recognition turns your spoken commands into text."
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +28,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.raqib.robot",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",

@@ -521,7 +521,11 @@ class SimMicrophone(Microphone):
             noise = np.convolve(noise, np.ones(12) / 12, mode="same")
             sig = 0.18 * noise / (np.std(noise) + 1e-9) + 0.05 * np.sin(2 * np.pi * 100 * t) + 0.03 * np.sin(2 * np.pi * 150 * t)
         elif kind == "crowd":
-            env = np.repeat(rng.uniform(0.1, 1.0, int(seconds * 8) + 1), sample_rate // 8)[:n]
+            # many voices: loudness swells and dips several times a second (alternate loud/quiet segments,
+            # so even a 1 s clip always has the strong modulation real crowd noise has)
+            k = int(seconds * 8) + 1
+            levels = np.where(np.arange(k) % 2 == 0, rng.uniform(0.6, 1.0, k), rng.uniform(0.1, 0.35, k))
+            env = np.repeat(levels, sample_rate // 8)[:n]
             noise = rng.normal(0, 1, n)
             noise = np.convolve(noise, np.ones(4) / 4, mode="same")
             sig = 0.35 * env * noise / (np.std(noise) + 1e-9) + 0.08 * np.sin(2 * np.pi * 220 * t) * env

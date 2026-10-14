@@ -36,7 +36,8 @@ TOOL_SPECS: dict[str, dict[str, Any]] = {
              "args": {"distance_m": "number (metres)"}},
     "turn": {"desc": "Turn in place. Positive = left/counter-clockwise.", "args": {"angle_deg": "number (degrees)"}},
     "stop": {"desc": "Stop all motion immediately.", "args": {}},
-    "pan_tilt": {"desc": "Point the camera.", "args": {"pan": "number -90..90", "tilt": "number -45..60"}},
+    "pan_tilt": {"desc": "Point the camera (on the budget robot the camera is fixed: the whole robot turns to look left/right, "
+                         "and cannot look up or down).", "args": {"pan": "number -90..90", "tilt": "number -45..60"}},
     "capture_and_analyze": {"desc": "Take a photo where the robot is now and analyse it with the vision model. Use for "
                                    "'what do you see', 'what is that', 'take a picture', 'is anyone here'. The reply "
                                    "is a first-person answer ('I see ...').",
@@ -181,6 +182,12 @@ class RobotTools:
             where.append("left")
         elif float(pan) < -5:
             where.append("right")
+        if (r or {}).get("fixed_camera"):
+            side = where[0] if where else None
+            msg = f"Turned to look {side}." if side else "Looking straight ahead."
+            if abs(float(tilt)) > 20 and float(tilt) != 0:
+                msg += " My camera is fixed, so I can't look up or down."
+            return {"summary": msg, "data": r}
         if float(tilt) > 20:
             where.append("up")
         elif float(tilt) < -5:

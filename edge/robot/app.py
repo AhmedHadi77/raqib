@@ -12,7 +12,7 @@ Commands (robot/{id}/commands, JSON {"id","action","params"}):
   reset        {}                       clear EMERGENCY STOP
   pan_tilt     {pan, tilt}
   snapshot     {size?}                  JPEG base64 for the VLM
-  read_environment {fresh?, occupied?}  averaged BME680/MQ-135 reading + verdicts
+  read_environment {fresh?, occupied?}  averaged climate (AHT20+BMP280 or BME680) + MQ-135 reading + verdicts
   listen_audio {seconds?}               acoustic classification (+ voice_like, dB)
   sound_scan   {step_deg?, seconds?}    turn on the spot, measure loudness every step, face the loudest
   speak        {text}
@@ -146,6 +146,7 @@ class RobotApp:
                        "pan_range_deg": [-90, 90]},
             "virtual_wiring": "harness" in self.hw.extra,
             "fixed_camera": bool(self.hw.extra.get("fixed_camera")),
+            "hardware_profile": self._profile(),
             "actions": sorted(["drive", "move", "turn", "go_to_zone", "go_to_point", "set_home", "stop", "estop", "reset",
                                "set_wiring", "wiring_status", "wiring_spec",
                                "pan_tilt", "snapshot", "read_environment", "listen_audio", "sound_scan", "speak",
@@ -158,6 +159,15 @@ class RobotApp:
             "server": self.mqtt.server[0] if self.mqtt and getattr(self.mqtt, "server", None) else None,
             "software": {"version": "2.4.0"},
         }
+
+    def _profile(self) -> str:
+        """'budget' = the RM 500 build (no servos, AHT20, webcam), 'full' = PCA9685 + servos, BME680, UPS."""
+        ex = self.hw.extra
+        if ex.get("build"):
+            return ex["build"]
+        if ex.get("webots"):
+            return "full"
+        return "full" if ex.get("pca") is not None and not ex.get("fixed_camera") else "budget"
 
     def _map_info(self) -> dict:
         """Floor-plan hints for the app's mini-map (walls/obstacles are only known in simulation)."""
@@ -573,7 +583,7 @@ class RobotApp:
             self.env.begin_stop()
         r = self.env.read_settled(occupied=occupied)
         if not r:
-            raise CommandError("error", "environment sensor (BME680) has no reading - see Robot health")
+            raise CommandError("error", "climate sensor (AHT20 / BME680) has no reading - see Robot health")
         r["zone"] = self.current_zone()
         return r
 

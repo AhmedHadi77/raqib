@@ -283,7 +283,7 @@ const matches = (s, t) => s.ext ? t === s.ext : !t.startsWith('pin:') ? false : 
 function whyWrong(part, pin, t) {
   const s = pin.spec, hint = $('hints').checked ? ` It goes to ${specText(s)}.` : '';
   if (!t.startsWith('pin:')) return s.ext ? `Not that terminal.${hint}` : `This wire goes on the Pi's 40-pin header.${hint}`;
-  if (s.ext) return (s.ext === 'bat+' ? 'That puts 11.1 V on the Pi and would destroy it.' : 'This one does not go on the Pi header.') + hint;
+  if (s.ext) return (s.ext === 'bat+' ? 'That puts the 7.4 V battery on the Pi and would destroy it.' : 'This one does not go on the Pi header.') + hint;
   const got = HEADER[+t.slice(4)][1], want = s.cls || HEADER[s.pin][1];
   if ((want === 'gnd' && (got === 'p5' || got === 'p33')) || ((want === 'p5' || want === 'p33') && got === 'gnd')) return `That joins power straight to ground: a short circuit.${hint}`;
   if (want === 'p33' && got === 'p5') return `${part.name} runs on 3.3 V. On 5 V it would burn out.${hint}`;
@@ -295,9 +295,9 @@ function whyWrong(part, pin, t) {
 }
 
 // ---------------------------------------------------------------- state
-let state = { mode: 'guided', enabled: false, wires: {}, mistakes: 0, open: 'ups' };
+let state = { mode: 'guided', enabled: false, wires: {}, mistakes: 0, open: 'buck' };
 let report = null, active = null, saveTimer = null;
-try { const s = JSON.parse(localStorage.getItem('raqib-bench-ui') || 'null'); if (s) { state.mode = s.mode || 'guided'; state.open = s.open || 'ups'; state.mistakes = s.mistakes || 0; } } catch (e) {}
+try { const s = JSON.parse(localStorage.getItem('raqib-bench-ui') || 'null'); if (s) { state.mode = s.mode || 'guided'; state.open = s.open || 'buck'; state.mistakes = s.mistakes || 0; } } catch (e) {}
 const saveUi = () => { try { localStorage.setItem('raqib-bench-ui', JSON.stringify({ mode: state.mode, open: state.open, mistakes: state.mistakes })); } catch (e) {} };
 
 function feedback(kind, title, text) {
@@ -364,8 +364,8 @@ function renderBoard() {
   });
 }
 
-const HEALTH_NAMES = { power: 'Power', motors: 'Drive motors', pan_tilt: 'Camera mount (servos)', ultrasonic: 'Distance sensors', encoders: 'Wheel encoders',
-  imu: 'Motion sensor (MPU6050)', environment: 'Air and climate', camera: 'Camera', microphone: 'Microphone', speaker: 'Speaker', battery: 'Battery gauge', i2c: 'I²C bus', wiring: 'Wiring warning' };
+const HEALTH_NAMES = { power: 'Power', motors: 'Drive motors', pan_tilt: 'Looking around', ultrasonic: 'Distance sensors', encoders: 'Wheel encoders',
+  imu: 'Motion sensor (MPU6050)', environment: 'Air and climate', camera: 'Camera', microphone: 'Microphone', speaker: 'Speaker', battery: 'Battery level', i2c: 'I²C bus', wiring: 'Wiring warning' };
 function renderStatus() {
   const n = Object.keys(state.wires).filter((k) => pinStatus(k) === 'ok').length;
   $('pbar').style.width = `${TOTAL ? (n / TOTAL) * 100 : 0}%`;
@@ -446,7 +446,7 @@ $('mode-guided').addEventListener('click', () => { state.mode = 'guided'; saveUi
 $('mode-free').addEventListener('click', () => { state.mode = 'free'; saveUi(); renderStatus(); feedback('info', 'Free mode', 'Any wire is allowed. Wire something wrong on purpose and watch the robot and Robot health react.'); });
 $('hints').addEventListener('change', renderAll);
 $('enabled').addEventListener('change', (e) => { state.enabled = e.target.checked; renderStatus(); push(); });
-$('reset').addEventListener('click', () => { state.wires = {}; state.mistakes = 0; active = null; saveUi(); feedback('info', 'All wires removed', 'Start again with the UPS hat and the L298N.'); renderAll(); push(); });
+$('reset').addEventListener('click', () => { state.wires = {}; state.mistakes = 0; active = null; saveUi(); feedback('info', 'All wires removed', 'Start again with the XL4015 and the L298N.'); renderAll(); push(); });
 
 async function boot() {
   if (!TOKEN) { $('loginbox').hidden = false; return; }

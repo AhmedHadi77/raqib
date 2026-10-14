@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
         await S.broker.shutdown()
 
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.4.0"
 app = FastAPI(title=f"{settings.product_name} - AI Inspection Robot API", version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
                    allow_methods=["*"], allow_headers=["*"])
@@ -258,13 +258,17 @@ async def users_delete(username: str, user: dict = Depends(require_role("admin")
 # ======================================================================= voice
 # ======================================================================= virtual wiring (Wiring Bench)
 WIRING_FILE = Path(settings.data_dir) / "wiring.json"
+WIRING_SPEC = "budget-1"          # bench parts changed (RM 500 build): older saved wiring is for parts the robot no longer has
 
 
 def _wiring_saved() -> dict:
     try:
-        return json.loads(WIRING_FILE.read_text(encoding="utf-8"))
+        saved = json.loads(WIRING_FILE.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return {"enabled": False, "wires": {}}
+    if saved.get("spec") != WIRING_SPEC:
+        return {"enabled": False, "wires": {}, "note": "the bench parts changed for the budget robot: wire it again"}
+    return saved
 
 
 async def _wiring_listener(msg: dict):
@@ -297,7 +301,7 @@ async def wiring_get(robot_id: str | None = None, user: dict = Depends(require_r
 @app.put("/wiring")
 async def wiring_put(body: dict, robot_id: str | None = None, user: dict = Depends(require_role("operator"))):
     wires = {str(k): str(v) for k, v in (body.get("wires") or {}).items() if v}
-    saved = {"enabled": bool(body.get("enabled")), "wires": wires, "updated": time.time(), "by": user["sub"]}
+    saved = {"enabled": bool(body.get("enabled")), "wires": wires, "updated": time.time(), "by": user["sub"], "spec": WIRING_SPEC}
     WIRING_FILE.write_text(json.dumps(saved), encoding="utf-8")
     ack = await S.bridge.send(robot_id or settings.robot_id, "set_wiring", {"enabled": saved["enabled"], "wires": wires},
                               timeout=10, issued_by=user["sub"])

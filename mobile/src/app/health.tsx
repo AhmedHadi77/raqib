@@ -13,27 +13,29 @@ import { useAppSelector } from '@/store';
 import { APP_VERSION, fonts } from '@/theme';
 import type { ComponentHealth } from '@/types';
 
-const PARTS: { key: string; name: string; icon: any; what: string }[] = [
-  { key: 'power', name: 'Power', icon: 'power-plug-outline', what: 'Battery, UPS hat, Raspberry Pi' },
+// `what` describes the budget robot (the RM 500 build); `full` the bigger build with servos, BME680 and a UPS module.
+const PARTS: { key: string; name: string; icon: any; what: string; full?: string }[] = [
+  { key: 'power', name: 'Power', icon: 'power-plug-outline', what: '2x18650 battery, XL4015 5 V, Raspberry Pi', full: 'Battery, UPS module, Raspberry Pi' },
   { key: 'wiring', name: 'Wiring warning', icon: 'flash-alert-outline', what: 'From the Wiring Bench' },
-  { key: 'motors', name: 'Drive motors', icon: 'engine-outline', what: 'PCA9685 + L298N, 4WD chassis' },
+  { key: 'motors', name: 'Drive motors', icon: 'engine-outline', what: 'L298N + 2 TT motors, speed on GPIO 13/19', full: 'PCA9685 + L298N' },
   { key: 'ultrasonic', name: 'Distance sensors', icon: 'signal-distance-variant', what: '3x HC-SR04, obstacle stop' },
   { key: 'encoders', name: 'Wheel encoders', icon: 'rotate-3d-variant', what: 'Distance travelled' },
   { key: 'imu', name: 'Motion sensor', icon: 'compass-outline', what: 'MPU6050, heading' },
-  { key: 'environment', name: 'Air and climate', icon: 'thermometer-lines', what: 'BME680 + MQ-135' },
-  { key: 'camera', name: 'Camera', icon: 'cctv', what: 'Pi Camera, video and photos' },
-  { key: 'pan_tilt', name: 'Camera mount', icon: 'axis-arrow', what: 'Pan / tilt servos' },
-  { key: 'microphone', name: 'Microphone', icon: 'microphone-outline', what: 'Equipment and alarm sounds' },
-  { key: 'speaker', name: 'Speaker', icon: 'speaker', what: 'Spoken announcements' },
-  { key: 'battery', name: 'Battery gauge', icon: 'battery-charging-outline', what: 'UPS hat INA219' },
-  { key: 'i2c', name: 'I2C bus', icon: 'connection', what: 'Shared sensor bus' },
+  { key: 'environment', name: 'Air and climate', icon: 'thermometer-lines', what: 'AHT20 + BMP280, MQ-135', full: 'BME680 + MQ-135' },
+  { key: 'camera', name: 'Camera', icon: 'cctv', what: 'USB webcam, video and photos', full: 'Pi Camera, video and photos' },
+  { key: 'pan_tilt', name: 'Looking around', icon: 'axis-arrow', what: 'Fixed camera: the robot turns to look', full: 'Pan / tilt servos' },
+  { key: 'microphone', name: 'Microphone', icon: 'microphone-outline', what: "Webcam microphone: talking, alarms, machines", full: 'USB microphone' },
+  { key: 'speaker', name: 'Speaker', icon: 'speaker', what: 'PAM8403 on the Pi audio jack', full: 'Spoken announcements' },
+  { key: 'battery', name: 'Battery level', icon: 'battery-charging-outline', what: 'Divider on ADS1115 A1', full: 'UPS module gauge' },
+  { key: 'i2c', name: 'I2C bus', icon: 'connection', what: 'MPU6050, AHT20, ADS1115', full: 'Shared sensor bus' },
 ];
 
-function PartRow({ part, h }: { part: (typeof PARTS)[number]; h?: ComponentHealth }) {
+function PartRow({ part, h, full }: { part: (typeof PARTS)[number]; h?: ComponentHealth; full?: boolean }) {
   const p = usePalette();
   const [open, setOpen] = useState(false);
   const ok = h?.ok;
   const color = h == null ? p.inkFaint : ok ? p.ok : p.danger;
+  const what = (full && part.full) || part.what;
   return (
     <Pressable onPress={() => h && !ok && setOpen(!open)} disabled={!h || ok}>
       <View style={styles.part}>
@@ -42,7 +44,7 @@ function PartRow({ part, h }: { part: (typeof PARTS)[number]; h?: ComponentHealt
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 15, color: p.ink }}>{part.name}</Text>
-          <Body small soft numberOfLines={open ? undefined : 1}>{h ? (ok ? h.detail || part.what : h.detail) : part.what}</Body>
+          <Body small soft numberOfLines={open ? undefined : 1}>{h ? (ok ? h.detail || what : h.detail) : what}</Body>
         </View>
         <MaterialCommunityIcons name={h == null ? 'help-circle-outline' : ok ? 'check-circle' : open ? 'chevron-up' : 'alert-circle'} size={20} color={color} />
       </View>
@@ -92,6 +94,7 @@ export default function Health() {
   const faults = PARTS.filter((x) => health[x.key] && !health[x.key].ok);
   const h = server.data;
   const sim = t?.simulation ?? info?.simulation;
+  const full = info?.hardware_profile === 'full';
 
   return (
     <Screen onRefresh={() => { robot.refresh(); server.refresh(); }}>
@@ -100,7 +103,7 @@ export default function Health() {
           {!live.online ? 'Robot offline' : faults.length ? `${faults.length} part${faults.length > 1 ? 's' : ''} need attention` : 'All systems working'}
         </Text>
         <Text style={{ fontFamily: fonts.body, fontSize: 14, color: '#95A2C6', lineHeight: 20 }}>
-          {info?.simulator === 'webots' ? 'Running in the Webots 3D simulator: motors, wheel encoders, sonars, IMU, pan/tilt camera and speaker are simulated in 3D; climate, gas and microphone are modelled per room. ' : ''}{sim ? 'Running in simulation. When the real parts are wired, set simulation: false on the robot and this list shows each one.'
+          {info?.simulator === 'webots' ? 'Running in the Webots 3D simulator: motors, wheel encoders, sonars, IMU, camera and speaker are simulated in 3D; climate, gas and microphone are modelled per room. ' : ''}{sim ? `Running in simulation${full ? '' : ' as the RM 500 budget robot (webcam, AHT20, one battery, no servos)'}. When the real parts are wired, set simulation: false on the robot and this list shows each one.`
             : faults.length ? 'Tap a red item to see how to fix it. The robot keeps working with the parts it has, and refuses to drive forward without its distance sensors.'
               : 'Every motor and sensor answered at start-up.'}
         </Text>
@@ -146,7 +149,7 @@ export default function Health() {
           {PARTS.filter((x) => !['i2c', 'power', 'wiring'].includes(x.key) || health[x.key]).map((part, i) => (
             <View key={part.key}>
               {i ? <Divider inset={48} /> : null}
-              <PartRow part={part} h={health[part.key]} />
+              <PartRow part={part} h={health[part.key]} full={full} />
             </View>
           ))}
         </Card>

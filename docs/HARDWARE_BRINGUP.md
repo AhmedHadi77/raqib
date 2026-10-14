@@ -36,10 +36,11 @@ Add another network later: `sudo nmcli dev wifi connect "NAME" password "PASSWOR
 python -m hwtest.i2c_scan
 ```
 
-Every expected device should show `[OK ]`. If one is MISSING, check SDA/SCL, 3.3 V and the address
-(BME680 boards can be at 0x77, so change `bme680_address`).
+Every expected device should show `[OK ]`: MPU6050 0x68, ADS1115 0x48 and the AHT20 0x38 + BMP280 0x77/0x76.
+If one is MISSING, check SDA/SCL, 3.3 V and the address. It also tells you that motor speed comes from GPIO 13/19
+(no PCA9685 on the budget robot).
 
-## 2. Motors, encoders, servos. **Wheels in the air!**
+## 2. Motors and encoders. **Wheels in the air!**
 
 ```
 python -m hwtest.test_motors
@@ -47,7 +48,8 @@ python -m hwtest.test_motors
 
 - Each wheel should spin in the stated direction. If not, set `invert: true` for that side.
 - Encoder ticks should increase for each wheel. If they stay at 0, check the encoder OUT pin.
-- Servos sweep left/right/up/down. Adjust `min_us`/`max_us` if the range is wrong.
+- The budget robot has no servos (fixed camera), so the servo part is skipped. With the PCA9685 upgrade the servos
+  sweep left/right/up/down; adjust `min_us`/`max_us` if the range is wrong.
 
 Then put the robot on the floor for **Milestone 2**:
 
@@ -58,7 +60,7 @@ python -m hwtest.test_motors --straight 5
 Measure the sideways drift with a tape measure. The target is < 20 cm.
 - Drifts consistently to one side → tune `heading_kp`.
 - Distance is wrong → correct `wheel_diameter_m` / `encoder_ticks_per_rev` (odometry KPI ±5 %).
-- Robot hesitates or won't turn → raise `min_power` (4WD skid-steer usually needs 0.35–0.45).
+- Robot hesitates or won't turn → raise `min_power` (2WD with a caster usually needs 0.30–0.40).
 
 ## 3. Ultrasonics + IMU + battery
 
@@ -73,13 +75,13 @@ python -m hwtest.test_sensors
 
 ```
 python -m hwtest.test_env                     # live values + verdicts
-python -m hwtest.test_env --burn-in           # 5 min in clean air -> gas_baseline_ohm
 python -m hwtest.test_env --calibrate-mq135   # outdoors, after 24 h burn-in -> mq135_r0
 ```
 
 Put the printed values into `config.yaml`. Check temperature and humidity against a reference
-thermometer/hygrometer (KPI: classification > 85 %). If the BME680 reads high, it is picking up heat
-from the Pi. Move it away or add a small duct.
+thermometer/hygrometer (KPI: classification > 85 %). If the AHT20 reads high, it is picking up heat
+from the Pi or the MQ-135. Move it away or add a small duct. (With the BME680 upgrade, also run
+`python -m hwtest.test_env --burn-in` for its VOC baseline.)
 
 ## 5. Camera, microphone, speaker
 
@@ -87,7 +89,8 @@ from the Pi. Move it away or add a small duct.
 python -m hwtest.test_camera_audio
 ```
 
-Open `test_snapshot.jpg`, play `test_audio.wav`, and listen for the spoken test phrase.
+Open `test_snapshot.jpg` (from the USB webcam), play `test_audio.wav` (the webcam's microphone), and listen for the
+spoken test phrase (PAM8403 on the Pi's audio jack; quick check: `speaker-test -D plughw:CARD=Headphones -c1 -t wav -l1`).
 
 ## 6. Audio model (Edge Impulse)
 

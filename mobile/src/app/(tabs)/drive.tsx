@@ -1,4 +1,4 @@
-// Drive console: live camera, 8-way pad / joystick, camera pan-tilt, precise moves and voice driving.
+// Drive console: live camera, 8-way pad / joystick, look-around (pan-tilt or turning the robot), precise moves and voice driving.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,7 +30,8 @@ export default function Drive() {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const { robotId, role, driveSpeed } = useAppSelector((s) => s.session);
-  const { telemetry: t, online } = useAppSelector((s) => s.robot);
+  const { telemetry: t, online, info } = useAppSelector((s) => s.robot);
+  const fixedCam = !!info?.fixed_camera;
   const [mode, setMode] = useState<Mode>('pad');
   const [snack, setSnack] = useState('');
   const [keyDir, setKeyDir] = useState<Dir | null>(null);
@@ -41,9 +42,9 @@ export default function Drive() {
   useEffect(() => drive.subscribe((_v, err) => err && setSnack(err)), []);
   useEffect(() => {
     if (t?.pan_tilt) setCam({ pan: t.pan_tilt.pan, tilt: t.pan_tilt.tilt });
-    // only on first telemetry after mount
+    // first telemetry after mount; on the budget robot also whenever driving resets the look angle
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!t]);
+  }, [!!t, fixedCam ? t?.pan_tilt?.pan : 0]);
   // leaving the screen always stops the wheels
   useFocusEffect(useCallback(() => () => { if (drive.active) drive.stop(); }, []));
 
@@ -146,14 +147,14 @@ export default function Drive() {
       <Segmented dark value={mode} onChange={setMode} options={[
         { value: 'pad', label: 'Pad', icon: 'gamepad-variant-outline' },
         { value: 'stick', label: 'Joystick', icon: 'axis-arrow' },
-        { value: 'camera', label: 'Camera', icon: 'cctv' },
+        { value: 'camera', label: fixedCam ? 'Look' : 'Camera', icon: 'cctv' },
       ]} />
       <View style={styles.controlArea}>
         {mode === 'pad' ? <DrivePad speed={driveSpeed} disabled={!canDrive || latched} active={keyDir} /> : null}
         {mode === 'stick' ? <Joystick speed={driveSpeed} disabled={!canDrive || latched} /> : null}
         {mode === 'camera' ? (
           <View style={{ alignItems: 'center', gap: 14 }}>
-            <CameraPad pan={cam.pan} tilt={cam.tilt} onMove={moveCam} disabled={!canDrive} />
+            <CameraPad pan={cam.pan} tilt={cam.tilt} onMove={moveCam} disabled={!canDrive || (fixedCam && latched)} fixed={fixedCam} />
             <Pressable disabled={!canDrive} onPress={() => { ask('What do you see?'); setSnack('Analysing the view… the answer appears in Assistant'); }}
               style={({ pressed }) => [styles.analyse, { backgroundColor: pressed ? p.primary : p.console2, borderColor: p.consoleLine, opacity: canDrive ? 1 : 0.4 }]}>
               <MaterialCommunityIcons name="eye-outline" size={18} color={p.consoleInk} />

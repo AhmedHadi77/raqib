@@ -9,6 +9,7 @@
 
 robot_id: robot01
 simulation: true
+sim_build: budget         # which robot the simulator imitates: budget (RM 500 build) | full (servos, BME680, UPS)
 
 mqtt:
   host: localhost          # IP / hostname of the machine running the broker (your laptop or cloud VM)
@@ -35,7 +36,7 @@ motion:
   max_speed_mps: 0.5       # scope: ~0.5 m/s
   default_speed: 0.6       # fraction of max (0..1)
   turn_speed: 0.5
-  min_power: 0.25          # lowest wheel power that still moves the robot (raise to ~0.4 for real 4WD)
+  min_power: 0.25          # lowest wheel power that still moves the robot (real 2WD + caster: about 0.3-0.4)
   wheel_diameter_m: 0.065
   wheel_base_m: 0.15
   encoder_ticks_per_rev: 20      # slots on the photoelectric encoder disc

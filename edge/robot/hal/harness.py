@@ -8,6 +8,7 @@ against the wires you made to the virtual Raspberry Pi, and behaves the way the 
   * IN1 / IN2 swapped      -> that side of the robot drives backwards
   * sensors on each other's pins -> left and right readings swapped
   * 5 V on a 3.3 V part    -> the part is "burnt" until you fix the wire
+  * no battery divider     -> no battery % (exactly like the real budget robot)
   * power to ground        -> short circuit: the whole robot is off
 
 Robot health in the app shows every problem with what to fix. Turned off, the robot works as before.
@@ -29,7 +30,7 @@ log = logging.getLogger(__name__)
 PART = {p["id"]: p for p in PARTS}
 POWER = ("p5", "p33")
 SW_PINS = {11: ("L", 1), 13: ("L", -1), 15: ("R", 1), 16: ("R", -1)}     # L298N inputs as the software drives them
-SW_PWM = {"pca0": "L", "pca1": "R"}
+SW_PWM = {33: "L", 35: "R"}                                             # ENA / ENB on GPIO 13 / 19
 US_KEYS = ("left", "center", "right")
 
 
@@ -84,9 +85,9 @@ def evaluate(wires: dict[str, str]) -> dict:
             if want == "gnd" and got in POWER or want in POWER and got == "gnd":
                 shorts.append(f"{label} on {_where(t)}: power is wired straight to ground")
             elif want == "ext:bat+" and got:
-                shorts.append(f"{label} (11.1 V battery) on the Pi's {_where(t)}: this would destroy the Pi")
+                shorts.append(f"{label} (7.4 V battery) on the Pi's {_where(t)}: this would destroy the Pi")
             elif want in POWER and t == "bat+":
-                warnings.append(f"{label} on the 11.1 V battery: the part would burn out")
+                warnings.append(f"{label} on the 7.4 V battery: the part would burn out")
             elif want in POWER and t == "bat-" or want == "ext:bat+" and t == "bat-" or want == "gnd" and t == "bat+":
                 shorts.append(f"{label} on {t}: the battery is shorted")
             elif want in ("gpio", "sda", "scl") and got in POWER + ("gnd",):
@@ -107,18 +108,16 @@ def evaluate(wires: dict[str, str]) -> dict:
             return False, "not on the I2C bus (SDA must be pin 3, SCL pin 5)"
         return True, ""
 
-    power = w("ups", "in+") == "bat+" and w("ups", "in-") == "bat-"
+    power = w("buck", "in+") == "bat+" and w("buck", "in-") == "bat-" and w("buck", "out") == "usbc"
     eff: dict = {"power": power and not shorts, "shorts": shorts, "warnings": warnings}
     on = eff["power"]
 
-    # ---------------- PCA9685 + L298N + motors
-    pca_ok, pca_why = i2c("pca")
-    servo_power = w("pca", "v+") == "ups5"
+    # ---------------- L298N (speed PWM on GPIO 13 / 19) + motors
     l298_power = w("l298", "12v") == "bat+" and w("l298", "gndbat") == "bat-"
     common_gnd = _cls(w("l298", "gndpi")) == "gnd"
 
     def channel(en, a, b):
-        side = SW_PWM.get(w("l298", en) or "")
+        side = SW_PWM.get(_pin(w("l298", en)) or 0)
         pa, pb = SW_PINS.get(_pin(w("l298", a)) or 0), SW_PINS.get(_pin(w("l298", b)) or 0)
         if not side or not pa or not pb or pa[0] != side or pb[0] != side or pa[1] == pb[1]:
             return None
@@ -128,15 +127,8 @@ def evaluate(wires: dict[str, str]) -> dict:
     wheels = {}
     for phys in ("left", "right"):
         out = w("motors", phys)
-        wheels[phys] = chans.get(out) if (on and pca_ok and l298_power and common_gnd and out in chans) else None
+        wheels[phys] = chans.get(out) if (on and l298_power and common_gnd and out in chans) else None
     eff["wheels"] = wheels
-
-    # ---------------- servos
-    servo = {}
-    for phys in ("pan", "tilt"):
-        ch = {"pca14": "pan", "pca15": "tilt"}.get(w("servos", phys) or "")
-        servo[phys] = ch if (on and pca_ok and servo_power and ch) else None
-    eff["servos"] = servo
 
     # ---------------- ultrasonics: software key -> physical sensor answering on its pins
     us = {}
@@ -161,19 +153,21 @@ def evaluate(wires: dict[str, str]) -> dict:
     eff["encoders"] = enc
 
     imu_ok, imu_why = i2c("imu")
-    bme_ok, bme_why = i2c("bme")
+    aht_ok, aht_why = i2c("aht")
     ads_ok, ads_why = i2c("ads", "vdd")
     addr = _cls(w("ads", "addr"))
     if ads_ok and addr != "gnd":
         ads_ok, ads_why = False, ("ADDR is on 3.3 V, so it answers at 0x49 but config.yaml expects 0x48" if addr == "p33"
                                   else "ADDR is not connected, so its I2C address is random")
     mq_ok = vcc_ok("mq") and w("mq", "aout") == "adsa0" and ads_ok
+    bat_ok = (w("batdiv", "in") == "bat+" and _cls(w("batdiv", "gnd")) == "gnd" and w("batdiv", "out") == "adsa1"
+              and ads_ok)
+    cam_ok = on and w("cam", "usb") == "usb"
     eff.update({
-        "imu": on and imu_ok, "bme": on and bme_ok, "gas": on and mq_ok,
-        "camera": on and w("cam", "ribbon") == "csi",
-        "microphone": on and w("mic", "usb") == "usb",
-        "speaker": on and vcc_ok("spk") and w("spk", "in") == "usbaudio",
-        "battery": on,
+        "imu": on and imu_ok, "climate": on and aht_ok, "gas": on and mq_ok,
+        "camera": cam_ok, "microphone": cam_ok,
+        "speaker": on and vcc_ok("spk") and w("spk", "in") == "jack",
+        "battery": on and bat_ok,
     })
     burnt = {msg.split(" ")[0] for msg in warnings if "burn" in msg}
     if burnt:
@@ -188,9 +182,10 @@ def evaluate(wires: dict[str, str]) -> dict:
     if shorts:
         put("power", False, "SHORT CIRCUIT - " + shorts[0], "Remove that wire on the Wiring Bench. The robot is off until you do.")
     elif not power:
-        put("power", False, "No power: the UPS hat is not connected to the battery", "Wire UPS hat Battery in + / - to the battery.")
+        put("power", False, "No power: the Pi gets nothing from the XL4015",
+            "XL4015 IN+ / IN- to the battery, OUT through the cut USB cable into the Pi's USB-C.")
     else:
-        put("power", True, "Battery -> UPS hat -> Raspberry Pi")
+        put("power", True, "Battery -> XL4015 5.1 V -> Raspberry Pi")
     put("i2c", on, "pins 3 (SDA) and 5 (SCL)" if on else "Pi is off")
 
     def side_txt(phys):
@@ -201,35 +196,24 @@ def evaluate(wires: dict[str, str]) -> dict:
         if c[0] != phys[0].upper():
             txt.append(f"driven by the {'left' if c[0] == 'L' else 'right'}-side signals")
         if c[1] < 0:
-            txt.append("run backwards")
+            txt.append("runs backwards")
         return ", ".join(txt)
 
     if not on:
         put("motors", False, "no power")
-    elif not pca_ok:
-        put("motors", False, f"PCA9685 {pca_why}", "PCA9685: VCC 3.3 V, GND, SDA pin 3, SCL pin 5.")
     elif not l298_power:
         put("motors", False, "L298N has no motor power", "L298N +12V to Battery +, GND to Battery -.")
     elif not common_gnd:
         put("motors", False, "L298N ground is not joined to the Pi ground", "Wire L298N GND (to Pi) to any GND pin.")
     elif None in wheels.values():
         dead = [k for k, v in wheels.items() if v is None]
-        put("motors", False, f"{' and '.join(dead)} wheels do not turn",
-            "Check ENA/ENB on PCA9685 ch0/ch1, IN1-IN4 on GPIO 17/27/22/23 and the motor pairs on OUT1-OUT4.")
+        put("motors", False, f"{' and '.join(dead)} wheel does not turn",
+            "ENA on pin 33, ENB on pin 35, IN1-IN4 on pins 11/13/15/16, and the motors on OUT1/OUT2 and OUT3/OUT4.")
     else:
-        odd = [f"{k} wheels {side_txt(k)}" for k in ("left", "right") if side_txt(k)]
-        put("motors", not odd, "; ".join(odd) if odd else "L298N + PCA9685, both sides OK",
-            "Swap IN1/IN2 (or IN3/IN4) to reverse a side; check which pair is on OUT1/OUT2." if odd else "")
-    if not on:
-        put("pan_tilt", False, "no power")
-    elif not servo_power:
-        put("pan_tilt", False, "servos have no power", "PCA9685 V+ to the UPS 5 V servo output.")
-    elif None in servo.values():
-        put("pan_tilt", False, "a servo is not plugged in", "Pan on channel 14, tilt on channel 15.")
-    elif servo["pan"] != "pan":
-        put("pan_tilt", False, "pan and tilt are swapped", "Pan servo on channel 14, tilt on channel 15.")
-    else:
-        put("pan_tilt", True, "servos on ch14 / ch15")
+        odd = [f"{k} wheel {side_txt(k)}" for k in ("left", "right") if side_txt(k)]
+        put("motors", not odd, "; ".join(odd) if odd else "L298N, speed on GPIO 13 / 19, both sides OK",
+            "Swap IN1/IN2 (or IN3/IN4) to reverse a side; check which motor is on OUT1/OUT2." if odd else "")
+    put("pan_tilt", on, "fixed camera: the robot turns to look around" if on else "no power")
     bad_us = [k for k, v in us.items() if v != k]
     put("ultrasonic", not bad_us,
         "3x HC-SR04 OK" if not bad_us else "; ".join(f"{k}: " + ("no reading" if us[k] is None else f"reads the {us[k]} sensor")
@@ -241,16 +225,18 @@ def evaluate(wires: dict[str, str]) -> dict:
         "; ".join(f"{k}: " + ("no ticks" if enc[k] is None else f"counts the {enc[k]} wheel") for k in bad_enc),
         "" if not bad_enc else "VCC 3.3 V, GND, left OUT on pin 29 (GPIO 5), right OUT on pin 31 (GPIO 6).")
     put("imu", eff["imu"], "MPU6050 at 0x68" if eff["imu"] else ("no power" if not on else f"MPU6050 {imu_why}"))
-    env_detail = ("BME680 + MQ-135" if eff["bme"] and eff["gas"] else
-                  "BME680 only: " + ("MQ-135 / ADS1115 " + (ads_why or "not wired")) if eff["bme"] else
-                  "no power" if not on else f"BME680 {bme_why}")
-    put("environment", eff["bme"] and eff["gas"], env_detail,
-        "" if eff["bme"] and eff["gas"] else "BME680 + ADS1115 on I2C (3.3 V), MQ-135 on 5 V with AOUT -> divider -> A0.")
-    put("camera", eff["camera"], "ribbon in the CSI port" if eff["camera"] else "no power" if not on else "ribbon cable not in the CSI port")
-    put("microphone", eff["microphone"], "USB" if eff["microphone"] else "no power" if not on else "not plugged into USB")
-    put("speaker", eff["speaker"], "PAM8403 + speaker" if eff["speaker"] else "no power" if not on else
-        "amplifier needs 5 V, GND and audio from the USB sound card")
-    put("battery", on, "UPS hat gauge (0x42)" if on else "no power")
+    env_detail = ("AHT20 + BMP280 + MQ-135" if eff["climate"] and eff["gas"] else
+                  "AHT20 only: " + ("MQ-135 / ADS1115 " + (ads_why or "not wired")) if eff["climate"] else
+                  "no power" if not on else f"AHT20 {aht_why}")
+    put("environment", eff["climate"] and eff["gas"], env_detail,
+        "" if eff["climate"] and eff["gas"] else "AHT20 + ADS1115 on I2C (3.3 V), MQ-135 on 5 V with AOUT -> divider -> A0.")
+    put("camera", eff["camera"], "USB webcam" if eff["camera"] else "no power" if not on else "webcam not plugged into USB")
+    put("microphone", eff["microphone"], "webcam microphone" if eff["microphone"] else "no power" if not on else
+        "the webcam (and its microphone) is not plugged into USB")
+    put("speaker", eff["speaker"], "PAM8403 on the Pi audio jack" if eff["speaker"] else "no power" if not on else
+        "amplifier needs 5 V, GND and audio from the Pi's 3.5 mm jack")
+    put("battery", eff["battery"], "2x18650 through the divider on ADS1115 A1" if eff["battery"] else "no power" if not on else
+        "battery divider: 10 kOhm from Battery +, 4.7 kOhm to GND, middle to ADS1115 A1" + ("" if ads_ok else f" (ADS1115 {ads_why})"))
     for msg in warnings:
         H.setdefault("wiring", {"ok": False, "detail": msg, "hint": "Fix that wire on the Wiring Bench."})
 
@@ -286,18 +272,13 @@ class HMotors(_Proxy, Motors):
 
 
 class HPanTilt(_Proxy, PanTilt):
+    """The budget robot has no servos: while the bench wiring is on, the camera stays straight ahead
+    (the robot turns its body to look, see RobotApp._virtual_pan)."""
+
     def set_angles(self, pan_deg, tilt_deg):
-        h = self._h
-        if not h.enabled:
+        if not self._h.enabled:
             return self._inner.set_angles(pan_deg, tilt_deg)
-        ch = {"pan": pan_deg, "tilt": tilt_deg}
-        s = h.eff["servos"]
-        self._last = getattr(self, "_last", [0.0, 0.0])
-        if s.get("pan"):
-            self._last[0] = ch[s["pan"]]
-        if s.get("tilt"):
-            self._last[1] = ch[s["tilt"]]
-        self._inner.set_angles(*self._last)
+        self._inner.set_angles(0.0, 0.0)
 
 
 class HUltrasonics(_Proxy, Ultrasonics):
@@ -352,11 +333,11 @@ class HEnv(_Proxy, EnvSensor):
         h = self._h
         if not h.enabled:
             return self._inner.read()
-        if not h.eff["bme"]:
-            raise RuntimeError("BME680 not found on I2C - check its wiring on the Wiring Bench")
+        if not h.eff["climate"]:
+            raise RuntimeError("AHT20 not found on I2C - check its wiring on the Wiring Bench")
         r = self._inner.read()
         if not h.eff["gas"]:
-            r = EnvRaw(r.temperature_c, r.humidity_pct, r.pressure_hpa, r.gas_resistance_ohm, None)
+            r = EnvRaw(r.temperature_c, r.humidity_pct, r.pressure_hpa, None, None)
         return r
 
 
@@ -408,6 +389,7 @@ class Harness:
         self.report = evaluate({})
         self.eff = self.report["effects"]
         self.base_health = copy.deepcopy(hw.health)
+        self.base_fixed = bool(hw.extra.get("fixed_camera"))
         hw.motors = HMotors(hw.motors, self)
         hw.pan_tilt = HPanTilt(hw.pan_tilt, self)
         hw.ultrasonics = HUltrasonics(hw.ultrasonics, self)
@@ -430,6 +412,9 @@ class Harness:
             self.encoders.rebase()
             self.hw.health.clear()
             self.hw.health.update(copy.deepcopy(self.base_health) if not self.enabled else self.report["health"])
+            self.hw.extra["fixed_camera"] = True if self.enabled else self.base_fixed
+            if self.enabled:
+                self.hw.pan_tilt.set_angles(0.0, 0.0)
             if self.enabled:
                 self.hw.motors.set_wheels(0.0, 0.0)
         return self.status()

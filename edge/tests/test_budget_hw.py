@@ -132,3 +132,51 @@ def test_audio_devices_are_picked_for_the_budget_build(monkeypatch):
     assert real._pick_playback("auto") == "plughw:CARD=Headphones"
     out += "card 3: Device [USB Audio Device], device 0: USB Audio [USB Audio]\n"
     assert real._pick_playback("auto") == "plughw:CARD=Device"
+
+
+def test_simulator_imitates_the_budget_robot_by_default():
+    """sim_build: budget - fixed camera, AHT20 (no VOC) but still an AQI from the MQ-135, 2-cell battery."""
+    from robot.app import RobotApp
+    from robot.config import load_config
+
+    app = RobotApp(load_config(), connect_mqtt=False)
+    app.safety.cloud_timeout = 1e9
+    try:
+        info = app.info()
+        assert info["hardware_profile"] == "budget" and info["fixed_camera"]
+        assert "AHT20" in info["health"]["environment"]["detail"]
+        raw = app.hw.env.read()
+        assert raw.gas_resistance_ohm is None and raw.mq135_volts
+        assert 6.0 < app.hw.battery.read().voltage <= 8.4
+        env = app.run_command("read_environment", fresh=True)["result"]
+        assert env["aqi"] is not None and env["gas_resistance_ohm"] is None
+    finally:
+        app.shutdown()
+    full = RobotApp(load_config(overrides={"sim_build": "full"}), connect_mqtt=False)
+    try:
+        assert full.info()["hardware_profile"] == "full" and not full.info()["fixed_camera"]
+    finally:
+        full.shutdown()
+
+
+def test_wiring_bench_battery_divider_and_webcam():
+    """Bench: the battery % needs the 10k/4.7k divider on A1; unplugging the webcam kills camera + microphone."""
+    from robot.hal.harness import evaluate
+    from robot.wiring_spec import PARTS
+
+    good = {}
+    for p in PARTS:
+        for pin in p["pins"]:
+            s = pin["spec"]
+            good[f"{p['id']}.{pin['id']}"] = s.get("ext") or (f"pin:{s['pin']}" if "pin" in s else
+                                                               {"p5": "pin:2", "p33": "pin:1", "gnd": "pin:6"}[s["cls"]])
+    r = evaluate(good)
+    assert r["drivable"] and all(v["ok"] for v in r["health"].values()), r["health"]
+    r = evaluate({k: v for k, v in good.items() if not k.startswith("batdiv.")})
+    assert not r["health"]["battery"]["ok"] and r["health"]["motors"]["ok"]
+    r = evaluate({k: v for k, v in good.items() if k != "cam.usb"})
+    assert not r["health"]["camera"]["ok"] and not r["health"]["microphone"]["ok"]
+    r = evaluate(dict(good, **{"l298.ena": "pin:35", "l298.enb": "pin:33"}))
+    assert not r["health"]["motors"]["ok"]
+    r = evaluate(dict(good, **{"l298.12v": "pin:2"}))
+    assert r["effects"]["shorts"] and "7.4 V" in r["effects"]["shorts"][0]

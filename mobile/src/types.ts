@@ -66,6 +66,10 @@ export interface RobotInfo {
   health?: Record<string, ComponentHealth>;
   software?: { version: string };
   safety?: { stop_distance_cm: number; cloud_timeout_s: number };
+  /** true on the budget robot: no servos, the robot turns its body to look around */
+  fixed_camera?: boolean;
+  /** 'budget' = RM 500 build (webcam, AHT20, one battery), 'full' = PCA9685 + servos, BME680, UPS */
+  hardware_profile?: 'budget' | 'full';
 }
 
 export interface ServerHealth {

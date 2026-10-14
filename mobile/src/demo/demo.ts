@@ -75,7 +75,7 @@ function telemetry(): Telemetry {
   const z = zoneAt();
   Object.assign(t, {
     v: 1, robot_id: RID, ts: now(), state: R.estop ? 'EMERGENCY_STOP' : R.state, simulation: true, privacy_mode: R.privacy,
-    battery: { voltage: +(10.2 + 2.4 * R.battery / 100).toFixed(2), percent: Math.round(R.battery * 10) / 10 },
+    battery: { voltage: +(6.6 + 1.8 * R.battery / 100).toFixed(2), percent: Math.round(R.battery * 10) / 10 },   // 2 x 18650
     pose: { x: +R.x.toFixed(3), y: +R.y.toFixed(3), heading_deg: +(((R.h + 540) % 360) - 180).toFixed(1), zone: z, odometer_m: +R.odo.toFixed(2) },
     motors: { left: R.drive.l, right: R.drive.r },
     pan_tilt: { pan: R.pan, tilt: R.tilt },
@@ -167,6 +167,7 @@ async function goToZone(z: string, token: number) {
 // ------------------------------------------------------------------ commands
 async function command(action: string, p: any): Promise<any> {
   const ok = (result: any = {}) => ({ v: 1, id: uid(), action, status: 'ok', result, error: null, type: 'ack', ts: now(), robot_id: RID });
+  if (['drive', 'move', 'turn', 'go_to_zone', 'go_to_point', 'set_home'].includes(action)) R.pan = 0;   // driving ends a look-around
   switch (action) {
     case 'drive':
       if (R.estop) return { ...ok(), status: 'rejected', error: 'emergency stop is on' };
@@ -194,9 +195,12 @@ async function command(action: string, p: any): Promise<any> {
     case 'reset':
       R.estop = false; R.state = 'IDLE';
       return ok();
-    case 'pan_tilt':
-      R.pan = Math.max(-90, Math.min(90, +p.pan || 0)); R.tilt = Math.max(-45, Math.min(45, +p.tilt || 0));
-      return ok({ pan: R.pan, tilt: R.tilt });
+    case 'pan_tilt': {
+      // budget robot: no servos, the whole robot turns to look and turns back for pan 0
+      const target = Math.max(-90, Math.min(90, +p.pan || 0));
+      R.h += target - R.pan; R.pan = target; R.tilt = 0;
+      return ok({ pan: R.pan, tilt: 0, fixed_camera: true });
+    }
     case 'snapshot':
       if (R.privacy) return { ...ok(), status: 'rejected', error: 'privacy mode is on' };
       return ok({ zone: zoneAt(), image_b64: frameUri().split(',')[1] });
@@ -364,7 +368,7 @@ async function chat(message: string): Promise<ChatResponse> {
     await runSteps(steps, async (i) => {
       await motion(async (t) => {
         await goToZone(targets[i], t);
-        for (const pan of [-35, 35, 0]) { R.pan = pan; await sleep(500); }
+        for (const pan of [-35, 35, 0]) { R.h += pan - R.pan; R.pan = pan; await sleep(500); }   // fixed camera: the robot turns
       });
       const zi = ZONE_INSPECTION[targets[i]];
       return `${targets[i]}: ${zi.anomalies.length} issue(s)${zi.anomalies.length ? ' - ' + zi.anomalies.map((a) => a.description).join('; ') : ''}`;

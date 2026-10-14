@@ -36,7 +36,7 @@ const TOOL_LABEL: Record<string, string> = {
   move: 'Move',
   turn: 'Turn',
   stop: 'Stop',
-  pan_tilt: 'Point camera',
+  pan_tilt: 'Look around',
   capture_and_analyze: 'Look with the camera',
   read_environment: 'Read air and climate',
   listen_audio: 'Listen',

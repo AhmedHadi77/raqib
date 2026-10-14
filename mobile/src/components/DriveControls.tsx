@@ -1,4 +1,5 @@
-// Manual drive controls for the console: 8-way pad, analog joystick and camera pan/tilt pad.
+// Manual drive controls for the console: 8-way pad, analog joystick and the look-around pad
+// (pan/tilt servos on the full robot; on the budget robot the whole robot turns to look).
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useRef, useState } from 'react';
@@ -122,12 +123,31 @@ export function Joystick({ speed, disabled, size = 210 }: { speed: number; disab
   );
 }
 
-/** Camera pan / tilt in 15 degree steps; centre button re-centres. */
-export function CameraPad({ pan, tilt, onMove, disabled }: {
-  pan: number; tilt: number; onMove: (pan: number, tilt: number) => void; disabled?: boolean;
+/** Camera pan / tilt in 15 degree steps; centre button re-centres.
+ *  fixed = budget robot without servos: left / right turn the whole robot (30 degree steps), centre turns it back. */
+export function CameraPad({ pan, tilt, onMove, disabled, fixed }: {
+  pan: number; tilt: number; onMove: (pan: number, tilt: number) => void; disabled?: boolean; fixed?: boolean;
 }) {
   const p = usePalette();
-  const step = 15;
+  const step = fixed ? 30 : 15;
+  if (fixed) {
+    const K2 = (icon: IconName, label: string, f: () => void) => (
+      <PadKey icon={icon} label={label} size={52} disabled={disabled} onIn={() => { tick(); f(); }} />
+    );
+    return (
+      <View style={{ alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {K2('rotate-left', 'Look left', () => onMove(Math.max(-90, Math.min(90, pan + step)), 0))}
+          {K2('image-filter-center-focus', 'Look ahead', () => onMove(0, 0))}
+          {K2('rotate-right', 'Look right', () => onMove(Math.max(-90, Math.min(90, pan - step)), 0))}
+        </View>
+        <Text style={{ fontFamily: fonts.numeric, color: p.consoleSoft, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+          {pan === 0 ? 'looking ahead' : `looking ${Math.abs(Math.round(pan))}° ${pan > 0 ? 'left' : 'right'}`}
+          {'\n'}fixed camera: the robot turns to look
+        </Text>
+      </View>
+    );
+  }
   const clampP = (v: number) => Math.max(-90, Math.min(90, v));
   const clampT = (v: number) => Math.max(-45, Math.min(60, v));
   const K = (icon: IconName, label: string, f: () => void) => (

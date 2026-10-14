@@ -1,53 +1,51 @@
-# Wiring guide
+# Wiring guide (budget robot, under RM 500)
 
 All GPIO numbers are **BCM** numbers, the same as in `edge/config.yaml → hardware:`. If you wire something
-differently, change the number in the config. The code does not need to change.
+differently, change the number in the config. The code does not need to change. The illustrated version with
+pictures of every part is `docs/Raqib_Robot_Build_Guide.pdf`.
 
 ## Power (most important: do this first)
 
 ```
-3x 18650 (11.1 V) ──┬──► L298N  +12V  (motors)      ← raw battery, motor noise stays here
-                    └──► UPS hat ──► 5 V/3 A ──► Raspberry Pi 4 (+ sensors' 5 V/3.3 V from the Pi)
-GND of battery, L298N, UPS hat and Pi MUST be connected together (common ground).
+2x 18650 (7.4 V, holder with switch) ──┬──► L298N +12V / GND                (motors)
+                                       ├──► 1000 µF ─► XL4015 IN+ / IN-  ─► OUT 5.1 V ─► cut USB cable ─► Pi USB-C
+                                       └──► 10 kΩ ─┬─ 4.7 kΩ ─ GND         (battery level)
+                                                   └──► ADS1115 A1
 ```
 
-- Remove the L298N's **5 V regulator jumper** only if your battery is above 12 V.
+- **Set the XL4015 to 5.1 V with a multimeter before the Pi is plugged in.** Straight from the box it may give 12 V.
+- All grounds are joined through the battery − wire; also run L298N GND → Pi pin 9 (signal ground).
 - Never power the motors from the Pi's 5 V pin.
 
 ## I²C bus (Pi pins 3 = SDA, 5 = SCL, 3.3 V)
 
 | Device | Address | Notes |
 |---|---|---|
-| PCA9685 PWM driver | 0x40 | VCC = 3.3 V logic. **V+ terminal = 5 V** (UPS 5 V rail or a 5 V BEC): it powers the servo headers |
 | MPU6050 IMU | 0x68 | mount flat, near the centre of the chassis |
-| BME680 | 0x76 (0x77 on some boards) | mount away from the Pi CPU and the motors (heat), with airflow |
-| ADS1115 ADC | 0x48 | **new part**: the Pi has no analog inputs, so the MQ-135 needs this |
-| UPS hat battery gauge (INA219) | 0x42 | depends on the hat; set `ups_ina219_address: null` if yours has none |
+| AHT20 + BMP280 combo | 0x38 + 0x77 (or 0x76) | temperature, humidity, pressure; away from the Pi CPU and the MQ-135 |
+| ADS1115 ADC | 0x48 | A0 = MQ-135, A1 = battery divider; ADDR → GND |
 
 Check everything with `python -m hwtest.i2c_scan`.
 
-## Motors: L298N + PCA9685
+## Motors: L298N, speed from the Pi
 
 | L298N pin | Connect to |
 |---|---|
-| ENA (remove jumper) | PCA9685 channel **0** PWM |
-| IN1 / IN2 | GPIO **17** / **27** (left motors) |
-| ENB (remove jumper) | PCA9685 channel **1** PWM |
-| IN3 / IN4 | GPIO **22** / **23** (right motors) |
-| OUT1/OUT2 | left front + left rear motors in parallel |
-| OUT3/OUT4 | right front + right rear motors in parallel |
-| GND | battery GND **and** Pi GND |
+| ENA (remove jumper) | GPIO **13** (pin 33), PWM |
+| IN1 / IN2 | GPIO **17** / **27** (pins 11 / 13), left motor |
+| ENB (remove jumper) | GPIO **19** (pin 35), PWM |
+| IN3 / IN4 | GPIO **22** / **23** (pins 15 / 16), right motor |
+| OUT1/OUT2 | left TT motor |
+| OUT3/OUT4 | right TT motor |
+| +12V / GND | battery + / −; GND also to Pi pin 9 |
 
-If a side spins backwards, set `invert: true` for that motor in the config.
+If a side spins backwards, set `invert: true` for that motor in the config. `motor_pwm: auto` uses these GPIO pins
+when no PCA9685 is found.
 
-## Pan/tilt servos (SG90)
+## Camera: fixed USB webcam
 
-| Servo | PCA9685 channel | Power |
-|---|---|---|
-| Pan | 14 | from the PCA9685 V+ rail (5 V), **never** the Pi 3.3 V |
-| Tilt | 15 | same |
-
-Plug the servo cables straight into PCA9685 header columns 14 and 15 (signal / V+ / GND).
+There are no servos. The webcam is fixed on the front of the top deck; to look left or right the robot turns its
+whole body, and turns back before it drives on (`pan_tilt: auto`).
 
 ## HC-SR04 ultrasonic sensors (5 V parts!)
 
@@ -94,24 +92,20 @@ Calibrate R0 in clean outdoor air with `python -m hwtest.test_env --calibrate-mq
 
 ## Camera, microphone, speaker
 
-- **Pi Camera V2:** CSI ribbon (blue side facing the Ethernet port on a Pi 4).
-- **USB microphone:** any USB port. Check it with `arecord -l`.
-- **PAM8403 + speaker:** power it from 5 V. Take the input from a USB sound card, or from the Pi 3.5 mm jack if your Pi has one (L/R + GND).
+- **USB webcam with microphone:** any USB port. The robot uses it for photos, video and hearing (`arecord -l` lists its mic).
+- **PAM8403 + speaker:** power it from 5 V (hub). Input from the Pi's own 3.5 mm audio jack: tip → L, sleeve → G.
+  The robot picks the jack by itself (`speaker_device: auto`); test with `speaker-test -D plughw:CARD=Headphones -c1 -t wav -l1`.
 
 ## Pin summary
 
 ```
-GPIO  5 enc L   | GPIO 12 US-L trig | GPIO 20 US-R trig | GPIO 24 US-C trig
-GPIO  6 enc R   | GPIO 16 US-L echo | GPIO 21 US-R echo | GPIO 25 US-C echo
+GPIO  5 enc L   | GPIO 12 US-L trig | GPIO 20 US-R trig | GPIO 24 US-C trig | GPIO 13 ENA (PWM)
+GPIO  6 enc R   | GPIO 16 US-L echo | GPIO 21 US-R echo | GPIO 25 US-C echo | GPIO 19 ENB (PWM)
 GPIO 17 IN1     | GPIO 27 IN2       | GPIO 22 IN3       | GPIO 23 IN4
-GPIO  2/3 I2C SDA/SCL  (PCA9685 0x40, MPU6050 0x68, BME680 0x76, ADS1115 0x48, INA219 0x42)
+GPIO  2/3 I2C SDA/SCL  (MPU6050 0x68, AHT20 0x38, BMP280 0x77, ADS1115 0x48)
 ```
 
-## Updated bill of materials
+## Upgrades (the software finds them by itself)
 
-Add to Table 2:
-
-| Component | Qty | Unit (MYR) | Why |
-|---|---|---|---|
-| ADS1115 16-bit ADC | 1 | ~12.00 | MQ-135 analog output (the Pi has no ADC) |
-| Resistors 1 kΩ / 2 kΩ / 10 kΩ / 20 kΩ | few | ~3.00 | HC-SR04 echo + MQ-135 voltage dividers |
+PCA9685 + 2 SG90 servos (ENA/ENB then on PCA9685 ch0/ch1, servos on ch14/ch15), Pi Camera (ribbon), BME680
+(instead of the AHT20), UPS module (INA219 gauge at 0x42). See the last page of the build guide.

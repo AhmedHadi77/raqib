@@ -18,7 +18,7 @@ apt_try() { for p in "$@"; do sudo apt-get install -y "$p" >/dev/null 2>&1 && ec
 step "System packages (a few minutes)"
 sudo apt-get update -y >/dev/null || WARN+=("apt update")
 # required
-for p in python3-venv python3-pip python3-dev i2c-tools espeak-ng libportaudio2 git; do
+for p in python3-venv python3-pip python3-dev i2c-tools espeak-ng alsa-utils libportaudio2 git; do
   sudo apt-get install -y "$p" >/dev/null 2>&1 || { echo "   !! could not install $p"; WARN+=("apt package $p"); }
 done
 # best effort (names differ between Raspberry Pi OS versions)
@@ -30,6 +30,8 @@ sudo raspi-config nonint do_i2c 0 2>/dev/null || WARN+=("enable I2C in raspi-con
 sudo raspi-config nonint do_camera 0 2>/dev/null || true
 if systemctl list-unit-files 2>/dev/null | grep -q '^pigpiod'; then sudo systemctl enable --now pigpiod >/dev/null 2>&1 || true; fi
 sudo usermod -aG i2c,gpio,video,audio "$USER" 2>/dev/null || true
+# budget build: the speaker amplifier is on the Pi's 3.5 mm jack - turn it up (the robot picks the jack by itself)
+amixer -q -c Headphones sset PCM 90% 2>/dev/null || amixer -q -c Headphones sset Headphone 90% 2>/dev/null || true
 
 step "Python environment (.venv, can take 10+ minutes the first time)"
 [ -d .venv ] || python3 -m venv --system-site-packages .venv

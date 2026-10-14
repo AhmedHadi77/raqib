@@ -42,6 +42,20 @@ def estimate_aqi(gas_ohm: float | None, humidity: float, baseline_ohm: float | N
     return round((100.0 - score) * 5.0, 1)
 
 
+def aqi_from_ppm(ppm: float | None) -> float | None:
+    """Budget build (no BME680 gas sensor): an air-quality index from the MQ-135 CO2-equivalent ppm, scaled so the
+    MQ-135 warning (1000 ppm) and hazard (2000 ppm) levels line up with AQI 150 and 300."""
+    if ppm is None:
+        return None
+    pts = [(400.0, 25.0), (1000.0, 150.0), (2000.0, 300.0), (4000.0, 500.0)]
+    if ppm <= pts[0][0]:
+        return round(max(0.0, pts[0][1] * ppm / pts[0][0]), 1)
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        if ppm <= x1:
+            return round(y0 + (ppm - x0) * (y1 - y0) / (x1 - x0), 1)
+    return 500.0
+
+
 def mq135_ppm(volts: float | None, r0_kohm: float, rl_kohm: float = 10.0, vcc: float = 5.0) -> float | None:
     if volts is None or volts <= 0.01:
         return None
@@ -165,6 +179,8 @@ class EnvironmentalSensor:
         mqv = sum(mqs) / len(mqs) if mqs else None
         aqi = estimate_aqi(gas, h, self.baseline)
         ppm = mq135_ppm(mqv, float(self.cfg.get("mq135_r0", 76.63)), self.rl)
+        if aqi is None and gas is None:
+            aqi = aqi_from_ppm(ppm)
         verdicts = classify(t, h, aqi, ppm, self.cfg)
         reading = {
             "temperature_c": round(t, 2),

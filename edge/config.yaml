@@ -114,8 +114,11 @@ hardware:
   i2c_bus: 1
   pca9685_address: 0x40
   pca9685_freq_hz: 50          # shared by servos (need 50 Hz) and L298N enable PWM
-  motor_left:  {pwm_channel: 0, in1: 17, in2: 27, invert: false}    # L298N ENA / IN1 / IN2
-  motor_right: {pwm_channel: 1, in1: 22, in2: 23, invert: false}    # L298N ENB / IN3 / IN4
+  motor_pwm: auto              # auto = PCA9685 if one is connected, else the pwm_pin GPIOs (budget build)
+  motor_pwm_hz: 500
+  motor_left:  {pwm_channel: 0, pwm_pin: 13, in1: 17, in2: 27, invert: false}    # L298N ENA / IN1 / IN2
+  motor_right: {pwm_channel: 1, pwm_pin: 19, in1: 22, in2: 23, invert: false}    # L298N ENB / IN3 / IN4
+  pan_tilt: auto               # auto = servos on the PCA9685 if present, else fixed camera (robot turns to look)
   servo_pan:  {channel: 14, min_us: 500, max_us: 2400}
   servo_tilt: {channel: 15, min_us: 500, max_us: 2400}
   ultrasonic:
@@ -125,15 +128,21 @@ hardware:
   encoder_left_pin: 5
   encoder_right_pin: 6
   mpu6050_address: 0x68
+  env_sensor: auto             # auto = BME680 if found, else AHT20 (+BMP280) - the budget sensor
   bme680_address: 0x76         # 0x77 on some breakout boards
+  aht20_address: 0x38
   ads1115_address: 0x48        # ADC needed for the MQ-135 analog output (Pi has no ADC)
   mq135_channel: 0
   mq135_load_resistor_kohm: 10.0
   mq135_divider_gain: 1.5      # MQ-135 AOUT (0-5V) -> 10k/20k divider -> ADS1115; volts x1.5 = sensor volts
   ups_ina219_address: 0x42     # battery gauge on most Pi UPS hats; null to disable
   battery_cells: 3
-  camera: picamera2            # picamera2 | opencv
+  battery_adc_channel: 1       # budget build: battery + -> 10k / 4.7k divider -> ADS1115 A1
+  battery_divider_gain: 3.13   # (10k + 4.7k) / 4.7k
+  battery_adc_cells: 2         # 2 x 18650 in series
+  camera: picamera2            # picamera2 (ribbon camera), falls back to a USB webcam (opencv) automatically
   opencv_camera_index: 0
-  microphone_device: null      # sounddevice name/index, null = default
+  microphone_device: null      # sounddevice name/index, null = the first USB mic (a webcam's mic works)
+  speaker_device: auto         # auto = USB sound card if present, else the Pi's 3.5 mm jack; or e.g. plughw:CARD=Headphones
   speaker_tts: espeak-ng
   gpio_pin_factory: auto       # auto = pigpio if its service runs (best HC-SR04 timing), else lgpio

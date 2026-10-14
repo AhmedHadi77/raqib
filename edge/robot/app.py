@@ -145,6 +145,7 @@ class RobotApp:
             "camera": {"hfov_deg": float(self.cfg.get("camera", {}).get("hfov_deg", 62.2)),
                        "pan_range_deg": [-90, 90]},
             "virtual_wiring": "harness" in self.hw.extra,
+            "fixed_camera": bool(self.hw.extra.get("fixed_camera")),
             "actions": sorted(["drive", "move", "turn", "go_to_zone", "go_to_point", "set_home", "stop", "estop", "reset",
                                "set_wiring", "wiring_status", "wiring_spec",
                                "pan_tilt", "snapshot", "read_environment", "listen_audio", "sound_scan", "speak",
@@ -155,7 +156,7 @@ class RobotApp:
             "health": self.hw.health,
             "faults": self.hw.faults(),
             "server": self.mqtt.server[0] if self.mqtt and getattr(self.mqtt, "server", None) else None,
-            "software": {"version": "2.2.0"},
+            "software": {"version": "2.4.0"},
         }
 
     def _map_info(self) -> dict:
@@ -367,6 +368,7 @@ class RobotApp:
 
     # ---------------------------------------------------------------- motion
     def cmd_drive(self, left: float = 0.0, right: float = 0.0):
+        self._reset_virtual_pan()
         self._require_motion()
         if self.state.state == State.AUTONOMOUS_PATROL:
             # the operator grabbed the controls: manual take-over cancels the running mission
@@ -452,6 +454,7 @@ class RobotApp:
         return {"avoidance_attempts": attempts}
 
     def cmd_go_to_zone(self, zone: str):
+        self._reset_virtual_pan()
         if zone not in self.zones:
             raise CommandError("error", f"unknown zone '{zone}'. Known: {list(self.zones)}")
         cancel = self._begin_motion()
@@ -467,6 +470,7 @@ class RobotApp:
             self._end_motion()
 
     def cmd_go_to_point(self, x: float, y: float, heading_deg: float | None = None):
+        self._reset_virtual_pan()
         """Drive to a point in metres from Home (patrol routes), optionally ending facing heading_deg."""
         cancel = self._begin_motion()
         try:
@@ -479,6 +483,7 @@ class RobotApp:
             self._end_motion()
 
     def cmd_set_home(self):
+        self._reset_virtual_pan()
         self.sensors.reset_pose()
         return {"pose": self.sensors.pose()}
 
@@ -504,9 +509,33 @@ class RobotApp:
         return {"state": self.state.state.value}
 
     def cmd_pan_tilt(self, pan: float = 0.0, tilt: float = 0.0):
+        if self.hw.extra.get("fixed_camera"):
+            return self._virtual_pan(float(pan))
         self.motors.set_pan_tilt(pan, tilt)
         time.sleep(0.3)  # let servos settle before a snapshot
         return {"pan": self.motors.pan, "tilt": self.motors.tilt}
+
+    def _virtual_pan(self, pan: float):
+        """Budget build without pan/tilt servos: 'look' at an angle by turning the whole robot. The pan offset is
+        remembered, so pan 0 turns it back (the server's look-around and approach logic works unchanged)."""
+        target = max(-90.0, min(90.0, pan))
+        delta = target - self.motors.pan
+        if abs(delta) >= 2.0:
+            cancel = self._begin_motion()
+            try:
+                self.state.transition(State.AUTONOMOUS_PATROL, "look around (fixed camera)")
+                r = self._turn(delta, cancel)
+                if r["status"] != "ok":
+                    raise CommandError(r["status"], f"turn {r['status']}", r)
+            finally:
+                self._end_motion()
+        self.motors.pan, self.motors.tilt = target, 0.0
+        time.sleep(0.2)
+        return {"pan": target, "tilt": 0.0, "fixed_camera": True}
+
+    def _reset_virtual_pan(self):
+        if self.hw.extra.get("fixed_camera"):
+            self.motors.pan = 0.0
 
     # ---------------------------------------------------------------- virtual wiring (simulated robot only)
     def _harness(self):

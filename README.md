@@ -184,6 +184,11 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 
 ## When the hardware arrives
 
+**What to buy and how to build it:** [docs/Raqib_Robot_Build_Guide.pdf](docs/Raqib_Robot_Build_Guide.pdf), the
+budget edition (≈ RM 494): Pi 4 2 GB, one 2 x 18650 pack with an XL4015 5 V converter, 2WD chassis, USB webcam with mic,
+AHT20 + BMP280, no servos (the robot turns to look around). The software detects the bigger parts (PCA9685 + servos,
+Pi Camera, BME680, UPS module) by itself if you add them later.
+
 Follow **[docs/HARDWARE_BRINGUP.md](docs/HARDWARE_BRINGUP.md)**. In short:
 
 1. Flash Raspberry Pi OS 64-bit (add your phone's hotspot as its Wi-Fi). On the PC run `pack_robot_for_pi.bat`, copy

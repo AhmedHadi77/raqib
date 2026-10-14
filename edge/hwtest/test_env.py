@@ -1,4 +1,4 @@
-"""Step 4 - BME680 + MQ-135.
+"""Step 4 - climate sensor (AHT20 or BME680) + MQ-135.
 
 python -m hwtest.test_env                  # live readings + verdicts
 python -m hwtest.test_env --burn-in        # 5 min in clean air -> prints gas_baseline_ohm for config.yaml
@@ -22,6 +22,9 @@ def main():
     hw = create_real_hardware(cfg)
     try:
         if args.burn_in:
+            if hw.env.read().gas_resistance_ohm is None:
+                print("Burn-in is only for the BME680 gas sensor. Budget build (AHT20): nothing to do.")
+                return
             vals = []
             t_end = time.time() + 300
             while time.time() < t_end:

@@ -43,6 +43,9 @@ def main():
             t1 = hw.encoders.ticks()
             print(f"  encoder ticks: left +{t1[0]-t0[0]}  right +{t1[1]-t0[1]}")
         print("If a wheel spun the wrong way set invert: true for that motor in config.yaml")
+        if hw.extra.get("fixed_camera"):
+            print("No pan/tilt servos (budget build): the robot turns its whole body to look around.")
+            return
         for pan, tilt in [(0, 0), (-60, 0), (60, 0), (0, 30), (0, -20), (0, 0)]:
             print(f"pan={pan} tilt={tilt}")
             hw.pan_tilt.set_angles(pan, tilt)

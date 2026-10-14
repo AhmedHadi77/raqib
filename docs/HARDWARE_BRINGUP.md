@@ -1,7 +1,8 @@
 # Hardware bring-up: from boxes of parts to a working robot
 
-> The full illustrated build guide (shopping list, power and wiring sketches, assembly) is the
-> "Raqib robot build guide" document. When the real robot is running, start the PC with
+> The full illustrated build guide (shopping list under RM 500, power and wiring diagrams, assembly) is
+> `docs/Raqib_Robot_Build_Guide.pdf`. Budget build: motor speed on GPIO 13/19 (pins 33/35) instead of a PCA9685,
+> no servos, AHT20 + BMP280, battery voltage on ADS1115 A1, USB webcam, speaker amp on the Pi audio jack. When the real robot is running, start the PC with
 > `start_backend.bat` (not `start_all.bat`, which also starts the simulated robot01), and set a
 > vision AI provider in `backend/.env` so photos are analysed.
 

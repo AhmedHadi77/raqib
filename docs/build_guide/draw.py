@@ -183,7 +183,8 @@ def resistor(s, x1, y1, x2, y2, bands, label=None, lc=INK):
 
 
 BANDS = {"1k": ["#7a4a1c", "#111", "#d22"], "2k": ["#d22", "#111", "#d22"],
-         "10k": ["#7a4a1c", "#111", "#f08a00"], "20k": ["#d22", "#111", "#f08a00"]}
+         "10k": ["#7a4a1c", "#111", "#f08a00"], "20k": ["#d22", "#111", "#f08a00"],
+         "4k7": ["#e8c400", "#7a3fb0", "#d22"]}
 
 
 # ================================================================= components (each returns its pin map)
@@ -561,3 +562,65 @@ def gpio_header(s, x, y, used: dict | None = None, pitch=17, labels="used"):
                 s.text(x + w + 14, py + 3, name, 8.5, col or MUTED, "start", 700)
         out[n] = (px, py, "L" if odd else "R")
     return out
+
+
+# ================================================================= budget-build parts
+def aht20(s, x, y, sc=1.0):
+    """AHT20 + BMP280 combo board (temperature, humidity, pressure)."""
+    k = sc
+    board(s, x, y, 76 * k, 62 * k, PURPLE, PURPLE_D, holes=False, rx=4)
+    s.rect(x + 10 * k, y + 8 * k, 12 * k, 12 * k, "#e8e8e8", "#999", rx=1)
+    s.rect(x + 46 * k, y + 8 * k, 12 * k, 12 * k, METAL, METAL_D, rx=1)
+    s.text(x + 38 * k, y + 32 * k, "AHT20+BMP280", 6 * k, SILK, "middle", 700)
+    return header_row(s, x + 14 * k, y + 62 * k + 6, ["VIN", "GND", "SCL", "SDA"], pitch=16 * k, side="above", label_color=SILK, size=6.5)
+
+
+def webcam(s, x, y, sc=1.0):
+    """Small USB webcam with built-in microphone, on its clip."""
+    k = sc
+    s.rect(x, y, 90 * k, 40 * k, "#202326", "#0d0f11", rx=18 * k)
+    s.circle(x + 45 * k, y + 20 * k, 14 * k, "#0f1a2a", "#3a3f44", 2)
+    s.circle(x + 41 * k, y + 16 * k, 4 * k, "#9fc3ff")
+    s.circle(x + 18 * k, y + 20 * k, 2.2 * k, "#55e07a")
+    for i in range(4):
+        s.circle(x + (68 + i * 4) * k, y + 20 * k, 1.2 * k, "#666")
+    s.text(x + 72 * k, y + 32 * k, "mic", 5.5 * k, "#999", "middle", 600)
+    s.rect(x + 38 * k, y + 40 * k, 14 * k, 18 * k, "#2a2e31", rx=2)
+    s.rect(x + 22 * k, y + 56 * k, 46 * k, 8 * k, "#2a2e31", rx=3)
+    s.path(f"M{x + 45 * k} {y + 64 * k} C {x + 45 * k} {y + 90 * k}, {x + 90 * k} {y + 80 * k}, {x + 110 * k} {y + 90 * k}", stroke="#2a2e31", sw=3)
+    s.rect(x + 108 * k, y + 84 * k, 22 * k, 12 * k, METAL, METAL_D, rx=2)
+    return {"usb": (x + 130 * k, y + 90 * k)}
+
+
+def buck_xl4015(s, x, y, sc=1.0):
+    """XL4015 5 A step-down converter: IN+/IN- on the left, OUT+/OUT- on the right, blue trimmer."""
+    k = sc
+    board(s, x, y, 140 * k, 70 * k, BLUE, BLUE_D, holes=False, rx=4)
+    s.circle(x + 40 * k, y + 32 * k, 15 * k, "#2a2e31", "#111")
+    s.text(x + 40 * k, y + 35 * k, "L", 8 * k, "#888", "middle", 700)
+    s.rect(x + 66 * k, y + 14 * k, 22 * k, 16 * k, "#15181b", rx=2)
+    s.text(x + 77 * k, y + 25 * k, "XL4015", 4.5 * k, "#ccc", "middle", 700)
+    s.rect(x + 66 * k, y + 40 * k, 14 * k, 14 * k, "#2a63b8", "#163c70", rx=2)
+    s.circle(x + 73 * k, y + 47 * k, 3 * k, "#e7c35a")
+    s.text(x + 73 * k, y + 64 * k, "set 5.1V", 5.5 * k, SILK, "middle", 700)
+    s.circle(x + 104 * k, y + 32 * k, 11 * k, "#1b1b1b")
+    out = {}
+    out.update(screw_terminal(s, x + 4 * k, y + 14 * k, 2, ["IN+", "IN-"], horizontal=False, label_side="right", size=6, cw=20))
+    out.update(screw_terminal(s, x + 122 * k, y + 14 * k, 2, ["OUT+", "OUT-"], horizontal=False, label_side="left", size=6, cw=20))
+    return out
+
+
+def capacitor(s, x, y, sc=1.0, label="1000 µF"):
+    k = sc
+    s.rect(x, y, 22 * k, 34 * k, "#1d3f8f", "#0f2457", rx=4)
+    s.rect(x + 15 * k, y, 7 * k, 34 * k, "#c9ced3", rx=2)
+    s.text(x + 18 * k, y + 20 * k, "−", 8 * k, "#333", "middle", 800)
+    s.line(x + 6 * k, y + 34 * k, x + 6 * k, y + 46 * k, "#9aa1a7", 2)
+    s.line(x + 16 * k, y + 34 * k, x + 16 * k, y + 46 * k, "#9aa1a7", 2)
+    s.text(x + 11 * k, y - 5, label, 7.5, MUTED, "middle", 600)
+    return {"+": (x + 6 * k, y + 46 * k), "-": (x + 16 * k, y + 46 * k)}
+
+
+def caster(s, cx, cy, r=13):
+    s.circle(cx, cy, r + 5, "#c9ced3", "#8b9399", 1.5)
+    s.circle(cx, cy, r - 2, "#202326")

@@ -1,0 +1,2 @@
+{ "name": "raqib-robot3d", "private": true, "description": "3D render of the finished Raqib robot (three.js + Playwright)",
+  "dependencies": { "three": "0.160.0" } }

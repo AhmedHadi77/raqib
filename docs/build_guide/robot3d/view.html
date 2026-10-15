@@ -1,0 +1,75 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#eef2f6;font-family:Inter,'DejaVu Sans',sans-serif;overflow:hidden}
+#wrap{position:relative} canvas{display:block}
+#ov{position:absolute;left:0;top:0;pointer-events:none}
+</style></head><body><div id="wrap"><canvas id="c"></canvas><svg id="ov"></svg></div>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from './node_modules/three/build/three.module.js';
+import { buildRobot, loadTextures, ANCHORS } from './robot.js';
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 2400), H = +(q.get('h') || 1600), view = q.get('view') || 'hero', labels = q.get('labels') === '1';
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef2f6);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9099, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(260, 420, 220); key.castShadow = true;
+key.shadow.mapSize.set(4096, 4096); Object.assign(key.shadow.camera, { left: -260, right: 260, top: 260, bottom: -260, near: 10, far: 1200 });
+key.shadow.bias = -0.0004; key.shadow.radius = 4; scene.add(key);
+const fill = new THREE.DirectionalLight(0xdfe8ff, 0.9); fill.position.set(-300, 200, -260); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.6); rim.position.set(-200, 120, 300); scene.add(rim);
+scene.fog = new THREE.Fog(0xeef2f6, 1400, 3200);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(6000, 64), new THREE.MeshStandardMaterial({ color: 0xe3e8ee, roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+await loadTextures(['pi', 'l298n', 'xl4015', 'hcsr04', 'mpu', 'aht', 'ads', 'mq', 'pam', 'enc', 'battery', 'hub']);
+buildRobot(scene);
+const VIEWS = {   // camera position, target, fov
+  hero: [[560, 390, 470], [-8, 72, 0], 20],
+  front: [[760, 150, 0], [0, 78, 0], 19],
+  rear: [[-560, 410, -450], [-12, 72, 0], 20],
+  left: [[0, 110, 820], [-5, 72, 0], 19],
+  top: [[0.01, 980, 0], [-5, 60, 0], 19],
+  under: [[300, -40, 520], [-10, 40, 0], 21],
+  close: [[330, 360, 200], [-25, 100, 0], 17],
+};
+const [pos, tgt, fov] = VIEWS[view];
+const cam = new THREE.PerspectiveCamera(fov, W / H, 1, 3000);
+cam.position.set(...pos); cam.lookAt(new THREE.Vector3(...tgt));
+if (view === 'top') { cam.up.set(1, 0, 0); cam.lookAt(new THREE.Vector3(...tgt)); }
+if (view === 'under') ground.visible = false;
+renderer.render(scene, cam);
+
+if (labels) {
+  const pick = (q.get('set') || '').split('|').filter(Boolean);
+  const names = pick.length ? pick : Object.keys(ANCHORS);
+  const pts = names.filter((n) => ANCHORS[n]).map((n) => {
+    const v = ANCHORS[n].clone().project(cam);
+    return { n, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H };
+  });
+  const svg = document.getElementById('ov'); svg.setAttribute('width', W); svg.setAttribute('height', H);
+  const left = pts.filter((p) => p.x < W * 0.5).sort((a, b) => a.y - b.y);
+  const right = pts.filter((p) => p.x >= W * 0.5).sort((a, b) => a.y - b.y);
+  const place = (arr, x, anchor) => {
+    const gap = 62; let y0 = Math.max(80, (H - gap * (arr.length - 1)) / 2 - 40);
+    // keep each label near its point but never closer than `gap` to the previous one
+    let prev = -1e9;
+    arr.forEach((p) => { p.ly = Math.max(prev + gap, Math.min(p.y, H - 60)); prev = p.ly; });
+    const over = prev - (H - 60); if (over > 0) arr.forEach((p) => (p.ly -= over));
+    arr.forEach((p) => {
+      const tw = p.n.length * 13.2 + 34, bx = anchor === 'end' ? x - tw : x;
+      svg.insertAdjacentHTML('beforeend',
+        `<polyline points="${p.x},${p.y} ${anchor === 'end' ? x + 30 : x - 30},${p.ly} ${x},${p.ly}" fill="none" stroke="#0f1d33" stroke-width="2.6"/>` +
+        `<circle cx="${p.x}" cy="${p.y}" r="7" fill="#fff" stroke="#0f1d33" stroke-width="3"/>` +
+        `<rect x="${bx}" y="${p.ly - 22}" width="${tw}" height="44" rx="22" fill="#0f1d33"/>` +
+        `<text x="${bx + tw / 2}" y="${p.ly + 8}" font-size="23" font-weight="700" fill="#fff" text-anchor="middle">${p.n}</text>`);
+    });
+  };
+  place(left, 60 + 420, 'end');
+  place(right, W - 60 - 420, 'start');
+}
+window.READY = true;
+</script></body></html>

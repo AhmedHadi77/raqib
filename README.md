@@ -184,6 +184,9 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 
 ## When the hardware arrives
 
+**What the finished robot looks like:** [docs/Raqib_Finished_Robot_3D.pdf](docs/Raqib_Finished_Robot_3D.pdf) and
+`docs/robot_renders/` (3D model, real size; sources in `docs/build_guide/robot3d/`).
+
 **The whole robot on one page:** [docs/Raqib_Full_Wiring_Diagram.pdf](docs/Raqib_Full_Wiring_Diagram.pdf) (A3 poster, also as .png;
 `python docs/build_guide/poster.py`).
 

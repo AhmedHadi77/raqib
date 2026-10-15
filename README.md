@@ -194,7 +194,7 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 [docs/Raqib_Parts_and_Wiring_Atlas.pdf](docs/Raqib_Parts_and_Wiring_Atlas.pdf) (`python docs/build_guide/atlas.py`).
 
 **What to buy and how to build it:** [docs/Raqib_Robot_Build_Guide.pdf](docs/Raqib_Robot_Build_Guide.pdf), the
-budget edition (≈ RM 494): Pi 4 2 GB, one 2 x 18650 pack with an XL4015 5 V converter, 2WD chassis, USB webcam with mic,
+budget edition (≈ RM 498): Pi 4 2 GB, one 2 x 18650 pack with an XL4015 5 V converter, 4WD chassis, USB webcam with mic,
 AHT20 + BMP280, no servos (the robot turns to look around). The software detects the bigger parts (PCA9685 + servos,
 Pi Camera, BME680, UPS module) by itself if you add them later.
 

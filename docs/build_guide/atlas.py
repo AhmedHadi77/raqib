@@ -23,7 +23,7 @@ ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 import diagrams as D  # noqa: E402
 from draw import (BANDS, BLUE, BLUE_D, GOLD, INK, METAL, METAL_D, MUTED, PCB, PCB_D, PI_PINS, S, SILK, W, ads1115,  # noqa: E402
-                  aht20, battery_2s, buck_xl4015, caster, cell_18650, encoder_disc, gpio_header, gy521, hcsr04, l298n,
+                  aht20, battery_2s, buck_xl4015, cell_18650, encoder_disc, gpio_header, gy521, hcsr04, l298n,
                   mq135, pam8403, pi4, resistor, slot_encoder, speaker, tag, tt_motor, webcam, wire)
 
 OUT_HTML = HERE / "atlas.html"
@@ -155,17 +155,17 @@ PARTS = [
      "Any 3 A phone cable. Inside: red, black, green and white wires.", "20-30 cm",
      [("red", "XL4015 OUT+", "5v"), ("black", "XL4015 OUT−", "gnd"), ("USB-C plug", "Pi USB-C power", "usb")],
      "Green and white are data wires: cut them short and tape them."),
-    ("chassis", "moving", "2WD chassis kit", "The robot's body: an acrylic deck, two motors with wheels and a caster at the back.",
-     "Clear or coloured acrylic plate with holes, 2 yellow TT motors, 2 wheels, 1 ball/swivel caster.",
-     "about 21 × 15 cm", [("motors", "under the deck, front", "mot"), ("caster", "under the deck, back", "mot")],
-     "Use a second plate on 35-40 mm standoffs as the top deck."),
-    ("motor", "moving", "TT gear motor + encoder disc", "Turns a wheel. The 20-slot disc lets the robot count how far it went.",
+    ("chassis", "moving", "4WD chassis kit", "The robot's body: two acrylic decks, four motors with wheels, brass standoffs.",
+     "Two clear or coloured acrylic plates with many holes, 4 yellow TT motors, 4 rubber wheels, brass posts and screws.",
+     "about 25 × 15 cm", [("4 motors", "under the bottom deck, 2 per side", "mot"), ("standoffs", "bottom deck → top deck", "mot")],
+     "Four driven wheels steer like a tank: left pair and right pair at different speeds."),
+    ("motor", "moving", "TT gear motors (×4) + encoder discs", "Each turns one wheel. The 20-slot disc on the two front motors lets the robot count how far it went.",
      "Yellow plastic gearbox with a small metal motor; shaft out of both sides.", "70 × 22 × 18 mm",
-     [("red wire", "L298N OUT1 (left) / OUT3 (right)", "mot"), ("black wire", "L298N OUT2 (left) / OUT4 (right)", "mot")],
-     "Solder the two wires before mounting; a side that runs backwards: swap them."),
+     [("left pair red / black", "L298N OUT1 / OUT2 (front + rear joined)", "mot"), ("right pair red / black", "L298N OUT3 / OUT4", "mot")],
+     "Join the two motors of a side red-to-red, black-to-black; a side that runs backwards: swap its two wires."),
     ("l298n", "moving", "L298N motor driver", "Switches battery power to the motors forwards or backwards, at the speed the Pi asks.",
      "Red board with a big black finned heatsink, blue screw terminals on three sides, 6 pins on the front.",
-     "43 × 43 mm", [("+12V / GND", "battery + / −", "bat"), ("GND", "also to Pi pin 9", "gnd"), ("OUT1/OUT2", "left motor", "mot"),
+     "43 × 43 mm", [("+12V / GND", "battery + / −", "bat"), ("GND", "also to Pi pin 9", "gnd"), ("OUT1/OUT2", "left motor pair", "mot"),
                     ("OUT3/OUT4", "right motor", "mot"), ("ENA / ENB", "Pi pins 33 / 35 (speed)", "pwm"),
                     ("IN1-IN4", "Pi pins 11, 13, 15, 16 (direction)", "sig")],
      "Pull off the ENA and ENB jumpers. Keep the 5V-EN jumper."),
@@ -413,14 +413,17 @@ def fig_exploded() -> str:
     _block(s, X + 140, y2 - 18, 100, 34, "#b8322a", "L298N")
     _block(s, X + 30, y2, 50, 16, BLUE, "enc L")
     _block(s, X + 300, y2, 50, 16, BLUE, "enc R")
-    # motors + wheels + caster
+    # 4 motors + 4 wheels (rear pair drawn behind, up and to the right)
+    for wx in (X - 30 + 82, X + Wd + 10 + 82):
+        s.add(f'<ellipse cx="{wx}" cy="{y2 + 70 - 66}" rx="20" ry="31" fill="#15181b"/>')
+    _block(s, X + 6 + 82, y2 + 54 - 66, 64, 20, "#d9ae22", "rear L", fg="#5c4500")
+    _block(s, X + Wd - 76 + 82, y2 + 54 - 66, 64, 20, "#d9ae22", "rear R", fg="#5c4500")
     for wx in (X - 30, X + Wd + 10):
         s.add(f'<ellipse cx="{wx}" cy="{y2 + 70}" rx="22" ry="34" fill="#202326"/>')
         s.add(f'<ellipse cx="{wx}" cy="{y2 + 70}" rx="9" ry="14" fill="#f2c230"/>')
-    _block(s, X + 6, y2 + 54, 64, 22, "#f2c230", "TT motor L", fg="#5c4500")
-    _block(s, X + Wd - 76, y2 + 54, 64, 22, "#f2c230", "TT motor R", fg="#5c4500")
-    s.circle(X + Wd / 2 + 60, y2 + 92, 12, "#c9ced3", "#8b9399", 2)
-    s.text(X + Wd / 2 + 80, y2 + 96, "caster (back)", 9, MUTED, "start", 700)
+    _block(s, X + 6, y2 + 54, 64, 22, "#f2c230", "front L", fg="#5c4500")
+    _block(s, X + Wd - 76, y2 + 54, 64, 22, "#f2c230", "front R", fg="#5c4500")
+    s.text(X + Wd / 2, y2 + 104, "4 × TT motors + wheels (2 per side)", 9, MUTED, "middle", 700)
     # layer 1: battery
     y1 = 680
     s.text(24, y1 - 14, "1 · underneath", 10, INK, "start", 800)
@@ -434,8 +437,9 @@ def fig_layout_bottom() -> str:
     s = S(700, 400)
     x, y, W_, H_ = 80, 50, 540, 300
     s.text(x + W_ / 2, 14, "BOTTOM DECK (seen from above) · front of the robot →", 11, INK, "middle", 800)
-    for wy in (y - 18, y + H_ - 10):
-        s.rect(x + 360, wy, 110, 28, "#202326", "#111", rx=8)
+    for wx in (x + 360, x + 60):
+        for wy in (y - 18, y + H_ - 10):
+            s.rect(wx, wy, 110, 28, "#202326", "#111", rx=8)
     s.rect(x, y, W_, H_, "#e6f1f9", "#7fa8c4", rx=40, sw=2)
 
     def part(px, py, pw, ph, col, label, sub="", fg="#fff"):
@@ -444,14 +448,14 @@ def fig_layout_bottom() -> str:
         if sub:
             s.text(x + px + pw / 2, y + py + ph / 2 + 13, sub, 7.5, fg, "middle", 500)
 
-    part(360, 18, 110, 34, "#f2c230", "TT motor L", "under the deck", fg="#5c4500")
-    part(360, H_ - 52, 110, 34, "#f2c230", "TT motor R", "under the deck", fg="#5c4500")
+    part(360, 18, 110, 34, "#f2c230", "front motor L", "under the deck", fg="#5c4500")
+    part(360, H_ - 52, 110, 34, "#f2c230", "front motor R", "under the deck", fg="#5c4500")
+    part(60, 18, 110, 34, "#f2c230", "rear motor L", "under the deck", fg="#5c4500")
+    part(60, H_ - 52, 110, 34, "#f2c230", "rear motor R", "under the deck", fg="#5c4500")
     part(375, 62, 90, 34, BLUE, "encoder L", "disc in the slot")
     part(375, H_ - 96, 90, 34, BLUE, "encoder R")
     part(250, 100, 100, 100, "#b8322a", "L298N", "heatsink up")
     part(100, 80, 130, 140, "#2f7dd1", "battery holder", "underneath; switch reachable")
-    caster(s, x + 50, y + H_ / 2, 14)
-    s.text(x + 50, y + H_ / 2 + 34, "caster", 9, MUTED, "middle", 700)
     for sx, sy in ((x + 26, y + 26), (x + W_ - 26, y + 26), (x + 26, y + H_ - 26), (x + W_ - 26, y + H_ - 26)):
         s.circle(sx, sy, 7, "#d4b24c", "#9c7f2a", 1.5)
     s.text(x + W_ / 2, y + H_ + 34, "Gold dots = standoffs to the top deck. Motor and battery wires go up through the deck holes.", 9.5, MUTED, "middle", 500)

@@ -127,20 +127,31 @@ def build() -> str:
     wire(s, [(bnx, bny), (bnx + 20, bny), (bnx + 20, 702), (l2["GND"][0], 702), l2["GND"]], CG, SW, r=5)
     dot(s, bnx + 20, bny, CG)
     label(s, 190, 420, "battery + → L298N +12V", CBAT, "end", 9)
-    # motors
-    tt_motor(s, 40, 520, 0.9, wheel=True)
-    s.text(40, 466, "LEFT motor + wheel", 10, INK, "start", 800)
+    # motors: 4WD, the front and rear motor of each side joined (red to red, black to black)
+    k = 0.9
+    s.text(40, 462, "LEFT pair (front + rear)", 10, INK, "start", 800)
+    for my in (520, 586):
+        tt_motor(s, 40, my, k, wheel=(my == 520))
+    s.text(40, 618, "rear motor", 8.5, MUTED, "start", 600)
     for i, (o, c) in enumerate((("OUT1", "#e23b2e"), ("OUT2", "#2a2e31"))):
         x0, y0 = l2[o]
-        tab = (40 + 94 * 0.9, 520 + (7.5 if i == 0 else 14.5) * 0.9)
-        wire(s, [(x0, y0), (286 - i * 8, y0), (286 - i * 8, tab[1]), tab], c, 2.6, r=4)
-    tt_motor(s, 470, 400, 0.9, wheel=True)
-    s.text(470, 346, "RIGHT motor + wheel", 10, INK, "start", 800)
+        t1 = (40 + 94 * k, 520 + (7.5 if i == 0 else 14.5) * k)
+        t2 = (40 + 94 * k, 586 + (7.5 if i == 0 else 14.5) * k)
+        wire(s, [(x0, y0), (286 - i * 8, y0), (286 - i * 8, t1[1]), t1], c, 2.6, r=4)
+        jx = 140 + i * 10
+        wire(s, [(jx, t1[1]), (jx, t2[1]), t2], c, 2.4, r=3)
+        dot(s, jx, t1[1], c)
+    s.text(470, 352, "RIGHT pair (front + rear)", 10, INK, "start", 800)
+    tt_motor(s, 470, 380, k, wheel=False)
+    tt_motor(s, 470, 412, k, wheel=False)
     for i, (o, c) in enumerate((("OUT3", "#e23b2e"), ("OUT4", "#2a2e31"))):
         x0, y0 = l2[o]
-        tab = (470 + 94 * 0.9, 400 + (7.5 if i == 0 else 14.5) * 0.9)
-        wire(s, [(x0, y0), (510 + i * 8, y0), (510 + i * 8, 440), (tab[0] + 10 + i * 8, 440), (tab[0] + 10 + i * 8, tab[1]), tab],
-             c, 2.6, r=4)
+        t1 = (470 + 94 * k, 380 + (7.5 if i == 0 else 14.5) * k)
+        t2 = (470 + 94 * k, 412 + (7.5 if i == 0 else 14.5) * k)
+        lane = t1[0] + 10 + i * 8
+        wire(s, [(x0, y0), (510 + i * 8, y0), (510 + i * 8, 446), (lane, 446), (lane, t1[1]), t1], c, 2.6, r=4)
+        wire(s, [(lane, t2[1]), t2], c, 2.4, r=3)
+        dot(s, lane, t2[1], c)
 
     # header -> L298N signals: row -> lane -> level below the board -> pin
     routes = [(9, "GND", CG), (33, "ENA", CPWM), (11, "IN1", CSIG), (13, "IN2", CSIG), (15, "IN3", CSIG), (16, "IN4", CSIG),

@@ -60,7 +60,7 @@ python -m hwtest.test_motors --straight 5
 Measure the sideways drift with a tape measure. The target is < 20 cm.
 - Drifts consistently to one side → tune `heading_kp`.
 - Distance is wrong → correct `wheel_diameter_m` / `encoder_ticks_per_rev` (odometry KPI ±5 %).
-- Robot hesitates or won't turn → raise `min_power` (2WD with a caster usually needs 0.30–0.40).
+- Robot hesitates or won't turn → raise `min_power` (4WD skid steering usually needs 0.35–0.45; raise `turn_speed` to 0.6 on carpet).
 
 ## 3. Ultrasonics + IMU + battery
 

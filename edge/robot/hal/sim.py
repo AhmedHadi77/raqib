@@ -575,7 +575,7 @@ class SimBattery(Battery):
 
 
 SIM_PARTS = {
-    "budget": {"motors": "simulated L298N, speed on GPIO 13/19", "pan_tilt": "fixed camera: the robot turns to look around",
+    "budget": {"motors": "simulated L298N + 4 TT motors, speed on GPIO 13/19", "pan_tilt": "fixed camera: the robot turns to look around",
                "ultrasonic": "simulated 3x HC-SR04", "encoders": "simulated", "imu": "simulated MPU6050",
                "environment": "simulated AHT20 + BMP280 + MQ-135", "camera": "simulated USB webcam",
                "microphone": "simulated webcam microphone", "speaker": "simulated PAM8403 on the audio jack",

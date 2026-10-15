@@ -17,7 +17,7 @@ import type { ComponentHealth } from '@/types';
 const PARTS: { key: string; name: string; icon: any; what: string; full?: string }[] = [
   { key: 'power', name: 'Power', icon: 'power-plug-outline', what: '2x18650 battery, XL4015 5 V, Raspberry Pi', full: 'Battery, UPS module, Raspberry Pi' },
   { key: 'wiring', name: 'Wiring warning', icon: 'flash-alert-outline', what: 'From the Wiring Bench' },
-  { key: 'motors', name: 'Drive motors', icon: 'engine-outline', what: 'L298N + 2 TT motors, speed on GPIO 13/19', full: 'PCA9685 + L298N' },
+  { key: 'motors', name: 'Drive motors', icon: 'engine-outline', what: 'L298N + 4 TT motors (4WD), speed on GPIO 13/19', full: 'PCA9685 + L298N' },
   { key: 'ultrasonic', name: 'Distance sensors', icon: 'signal-distance-variant', what: '3x HC-SR04, obstacle stop' },
   { key: 'encoders', name: 'Wheel encoders', icon: 'rotate-3d-variant', what: 'Distance travelled' },
   { key: 'imu', name: 'Motion sensor', icon: 'compass-outline', what: 'MPU6050, heading' },

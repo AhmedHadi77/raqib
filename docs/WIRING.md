@@ -35,8 +35,8 @@ Check everything with `python -m hwtest.i2c_scan`.
 | IN1 / IN2 | GPIO **17** / **27** (pins 11 / 13), left motor |
 | ENB (remove jumper) | GPIO **19** (pin 35), PWM |
 | IN3 / IN4 | GPIO **22** / **23** (pins 15 / 16), right motor |
-| OUT1/OUT2 | left TT motor |
-| OUT3/OUT4 | right TT motor |
+| OUT1/OUT2 | left front + left rear motor, joined (red-red, black-black) |
+| OUT3/OUT4 | right front + right rear motor, joined |
 | +12V / GND | battery + / −; GND also to Pi pin 9 |
 
 If a side spins backwards, set `invert: true` for that motor in the config. `motor_pwm: auto` uses these GPIO pins

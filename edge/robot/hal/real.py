@@ -697,7 +697,7 @@ class _NullPart(Microphone, Speaker):
 HINTS = {
     "i2c": "Enable I2C (sudo raspi-config > Interface Options) and check SDA=GPIO2 / SCL=GPIO3 wiring. "
            "Run: python -m hwtest.i2c_scan",
-    "motors": "L298N IN1-IN4 on GPIO 17/27/22/23; ENA/ENB from GPIO 13/19 (budget) or PCA9685 ch0/1. Common ground! "
+    "motors": "4WD: both motors of a side joined on OUT1/OUT2 (left) and OUT3/OUT4 (right). L298N IN1-IN4 on GPIO 17/27/22/23; ENA/ENB from GPIO 13/19 (budget) or PCA9685 ch0/1. Common ground! "
               "Run: python -m hwtest.test_motors",
     "pan_tilt": "Servos on PCA9685 channels 14/15 with their own 5-6 V supply.",
     "ultrasonic": "HC-SR04 trig/echo pins as in config.yaml, echo through a 1k/2k divider. "

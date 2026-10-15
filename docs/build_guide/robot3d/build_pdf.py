@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 OUT_PDF = HERE.parent.parent / "Raqib_Finished_Robot_3D.pdf"
 
 PAGES = [
-    ("hero", "The finished robot", "Raqib, the budget AI inspection robot, fully built and wired: two acrylic decks, three ultrasonic "
+    ("hero", "The finished robot", "Raqib, the budget AI inspection robot, fully built and wired: four-wheel drive, two acrylic decks, three ultrasonic "
      "sensors and a USB webcam at the front, the Raspberry Pi and sensors on top, motors and battery below."),
     ("hero_labels", "Every part, labelled", "All parts in their final place. Front of the robot = the side with the webcam."),
     ("top_labels", "Seen from above: how the top deck is organised",
@@ -21,12 +21,12 @@ PAGES = [
      "(warm parts away from the AHT20)."),
     ("front", "Front view", "What the robot looks at: the centre sonar straight ahead, the left and right sonars turned 45°, the webcam "
      "above them. The camera is fixed: the robot turns its whole body to look around."),
-    ("left", "Side view", "Two decks on 40 mm brass standoffs. Bottom deck: L298N motor driver; under it the battery, the TT motors with "
-     "wheels at the front and the caster at the back. Top deck: Pi, sensors, speaker, webcam."),
+    ("left", "Side view", "Two decks on 40 mm brass standoffs. Bottom deck: L298N motor driver; under it the battery and the four TT motors with "
+     "their wheels (4WD). Top deck: Pi, sensors, speaker, webcam."),
     ("rear_labels", "From the back", "The XL4015 converter, the cut USB cable to the Pi's power socket, the MQ-135 and the speaker sit at the "
      "back; the wires from the Pi go down through the deck to the L298N."),
-    ("under_labels", "Underneath", "The 2 × 18650 holder hangs under the bottom deck with its switch reachable; the TT motors carry the "
-     "encoder discs on their inner shafts, read by the slot sensors; the caster wheel at the back."),
+    ("under_labels", "Underneath", "The 2 × 18650 holder hangs under the bottom deck with its switch reachable; four TT motors, two per "
+     "side; the front pair carries the encoder discs on their inner shafts, read by the slot sensors."),
     ("close", "Close-up of the top deck", "Colour-coded jumper wires from the Pi's 40-pin header: red 5 V, orange 3.3 V, black GND, blue SDA, "
      "yellow SCL, green motor direction, amber motor speed, pink / olive / brown sonars, cyan encoders."),
 ]

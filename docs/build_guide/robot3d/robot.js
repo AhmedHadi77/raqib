@@ -102,41 +102,44 @@ export function buildRobot(scene) {
   for (const [x, z] of [[-96, -62], [-96, 62], [86, -62], [86, 62]]) cyl(3.2, Y2 - Y1 - T, M.brass, x, (Y1 + T + Y2) / 2, z, R, 'y', 6);
   ANCHORS['Brass standoffs 40 mm'] = new THREE.Vector3(86, 70, 62);
 
-  // ---------------- wheels + TT motors (front, under the bottom deck)
-  for (const s of [1, -1]) {
-    const zW = s * 91;
-    cyl(33, 26, M.rubber, 45, 33, zW, R, 'z', 48);
+  // ---------------- 4WD: four wheels + four TT motors under the bottom deck (front pair carries the encoders)
+  const wheel = (x, zW) => {
+    cyl(33, 26, M.rubber, x, 33, zW, R, 'z', 48);
     for (let k = 0; k < 18; k++) {        // tread ribs
       const a = (k / 18) * Math.PI * 2;
-      const rib = box(5, 2, 26.5, M.rubber, 45 + Math.cos(a) * 33, 33 + Math.sin(a) * 33, zW, R);
+      const rib = box(5, 2, 26.5, M.rubber, x + Math.cos(a) * 33, 33 + Math.sin(a) * 33, zW, R);
       rib.rotation.z = a + Math.PI / 2;
     }
-    cyl(15, 27, M.yellow, 45, 33, zW, R, 'z', 32);
-    cyl(4, 30, M.white, 45, 33, zW, R, 'z', 16);
-    box(70, 22, 18, M.yellow, 20, 33, s * 63, R);                     // gearbox
-    cyl(10, 26, M.steel, -28, 33, s * 63, R, 'x');                    // motor can
-    cyl(2.7, 10, M.white, 45, 33, s * 50, R, 'z', 12);                 // inner shaft
-    // encoder disc + slot sensor
-    const disc = cyl(11, 1, M.black, 45, 33, s * 47, R, 'z', 40);
+    cyl(15, 27, M.yellow, x, 33, zW, R, 'z', 32);
+    cyl(4, 30, M.white, x, 33, zW, R, 'z', 16);
+  };
+  for (const s of [1, -1]) {
+    const zW = s * 91;
+    // front motor: shaft at x = 45, gearbox towards the back, can in the middle
+    wheel(45, zW);
+    box(48, 22, 18, M.yellow, 31, 33, s * 63, R);
+    cyl(10, 22, M.steel, -4, 33, s * 63, R, 'x');
+    cyl(2.7, 10, M.white, 45, 33, s * 50, R, 'z', 12);
+    // rear motor: mirror image, shaft at x = -70
+    wheel(-70, zW);
+    box(48, 22, 18, M.yellow, -56, 33, s * 63, R);
+    cyl(10, 22, M.steel, -21, 33, s * 63, R, 'x');
+    // encoder disc + slot sensor on the front motor's inner shaft
+    cyl(11, 1, M.black, 45, 33, s * 47, R, 'z', 40);
     for (let k = 0; k < 20; k++) {
       const a = (k / 20) * Math.PI * 2;
       box(1.6, 3, 1.2, M.white, 45 + Math.cos(a) * 8.5, 33 + Math.sin(a) * 8.5, s * 47, R).rotation.z = a;
     }
     const eb = pcb('enc', 32, 14, 0x163f80, R); eb.position.set(30, Y1 - 0.2, s * 47 - 7); eb.rotation.x = Math.PI; eb.position.z += 14;
     box(5, 12, 4, M.black, 45, Y1 - 7, s * 47 - 3.2, R); box(5, 12, 4, M.black, 45, Y1 - 7, s * 47 + 3.2, R);
-    // motor wires up to the deck
-    wires.push(wire([[-14, 40, s * 63], [-20, 44, s * 60], [-25, 52, s * 40], [-28, 60, s * 18]], 0xe23b2e, 0.7));
-    wires.push(wire([[-14, 38, s * 61], [-22, 44, s * 57], [-27, 52, s * 38], [-30, 60, s * 16]], 0x2a2e31, 0.7));
+    // each side's two motors joined (red-red, black-black), then up to the L298N
+    wires.push(wire([[7, 40, s * 70], [-12, 45, s * 72], [-32, 40, s * 70]], 0xe23b2e, 0.7));
+    wires.push(wire([[7, 37, s * 72], [-12, 43, s * 74], [-32, 37, s * 72]], 0x2a2e31, 0.7));
+    wires.push(wire([[-12, 45, s * 72], [-14, 48, s * 55], [-22, 56, s * 34], [-28, 60, s * 18]], 0xe23b2e, 0.7));
+    wires.push(wire([[-12, 43, s * 74], [-16, 47, s * 53], [-24, 55, s * 32], [-30, 60, s * 16]], 0x2a2e31, 0.7));
   }
-  ANCHORS['Wheels + TT gear motors (2WD)'] = new THREE.Vector3(45, 55, 104);
+  ANCHORS['4 wheels + 4 TT gear motors (4WD)'] = new THREE.Vector3(45, 55, 104);
   ANCHORS['Wheel encoders (slot sensor + disc)'] = new THREE.Vector3(45, 40, 47);
-
-  // caster (back)
-  box(28, 3, 28, M.steel, -90, Y1 - 1.5, 0, R);
-  cyl(6, 14, M.steel, -90, Y1 - 10, 0, R);
-  box(3, 20, 14, M.steel, -95, 18, 0, R);
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 32, 16), M.steel); ball.position.set(-90, 9, 0); ball.castShadow = true; R.add(ball);
-  ANCHORS['Caster wheel (back)'] = new THREE.Vector3(-90, 10, 0);
 
   // battery holder under the bottom deck (cells face down)
   box(77, 20, 41, M.blackPlastic, -25, Y1 - 10.5, 0, R);

@@ -52,7 +52,7 @@ def fig_component(name: str) -> str:
     elif name == "bat2":
         battery_2s(s, 6, 8, 1.0)
     elif name == "chassis":
-        chassis_2wd(s, 10, 10, 1.0, bare=True)
+        chassis_top(s, 10, 10, 1.0, bare=True)
     elif name == "aht":
         aht20(s, 18, 8, 1.0)
     elif name == "webcam":
@@ -176,7 +176,7 @@ def fig_overview() -> str:
     box(250, 150, 200, 110, "Raspberry Pi 4", ["robot program + its own server", "AI agent · Wi-Fi to the phone", "USB webcam + mic · speaker"], PCB)
     box(20, 20, 200, 90, "Power", ["one 2x18650 pack (7.4 V)", "XL4015 → 5.1 V for the Pi"], "#c0392b")
     box(480, 20, 200, 90, "Phone app (APK)", ["Wi-Fi: hotspot, home, or", "the robot's own 'Raqib-Robot'"], "#2d6be0")
-    box(20, 300, 200, 110, "Moving", ["2WD chassis + caster", "L298N + 2 TT motors", "speed from Pi pins 33 / 35"], "#8d5a3b")
+    box(20, 300, 200, 110, "Moving", ["4WD chassis, 4 TT motors", "L298N: one channel per side", "speed from Pi pins 33 / 35"], "#8d5a3b")
     box(250, 300, 200, 110, "Seeing obstacles", ["3x HC-SR04 sonar", "2 wheel encoders", "MPU6050 motion sensor"], "#1e9e55")
     box(480, 300, 200, 110, "Measuring the room", ["AHT20 + BMP280 climate", "MQ-135 gas → ADS1115", "webcam microphone"], "#8a55e8")
     box(20, 150, 200, 110, "Sensor hub board", ["your perfboard: 5V, 3V3, GND,", "SDA, SCL rails + dividers"], "#b07d2c")
@@ -337,20 +337,25 @@ def fig_motors() -> str:
     used = {9: W["gnd"], 11: W["sig1"], 13: W["sig2"], 15: W["sig3"], 16: W["sig4"], 33: W["pwm"], 35: "#c98a00"}
     hdr = gpio_header(s, 40, 30, used, pitch=13, labels="none")
     l2 = l298n(s, 300, 160, 1.0)
-    tt_motor(s, 160, 70, 0.8, wheel=False)
-    s.text(160, 62, "LEFT motor", 8.5, INK, "start", 800)
-    tt_motor(s, 520, 70, 0.8, wheel=False)
-    s.text(520, 62, "RIGHT motor", 8.5, INK, "start", 800)
     k = 0.8
+    for (mx, label) in ((160, "LEFT pair (front + rear)"), (520, "RIGHT pair (front + rear)")):
+        s.text(mx, 34, label, 8.5, INK, "start", 800)
+        tt_motor(s, mx, 44, k, wheel=False)
+        tt_motor(s, mx, 84, k, wheel=False)
     for i, (o, c) in enumerate((("OUT1", "#e23b2e"), ("OUT2", "#2a2e31"))):
         x0, y0 = l2[o]
-        tab = (160 + 94 * k, 70 + (7.5 if i == 0 else 14.5) * k)
-        wire(s, [(x0, y0), (284 - i * 8, y0), (284 - i * 8, tab[1]), tab], c, 2.6, r=4)
+        tabs = [(160 + 94 * k, my + (7.5 if i == 0 else 14.5) * k) for my in (44, 84)]
+        lane = 284 - i * 8
+        wire(s, [(x0, y0), (lane, y0), (lane, tabs[0][1]), tabs[0]], c, 2.6, r=4)
+        wire(s, [(lane, tabs[0][1]), (lane, tabs[1][1]), tabs[1]], c, 2.6, r=4)
+        s.circle(lane, tabs[1][1], 3, c)
     for i, (o, c) in enumerate((("OUT3", "#e23b2e"), ("OUT4", "#2a2e31"))):
         x0, y0 = l2[o]
-        tab = (520 + 94 * k, 70 + (7.5 if i == 0 else 14.5) * k)
-        wire(s, [(x0, y0), (500 + i * 8, y0), (500 + i * 8, 120 + i * 8), (tab[0] + 14 + i * 8, 120 + i * 8),
-                 (tab[0] + 14 + i * 8, tab[1]), tab], c, 2.6, r=4)
+        tabs = [(520 + 94 * k, my + (7.5 if i == 0 else 14.5) * k) for my in (44, 84)]
+        lane = tabs[0][0] + 14 + i * 8
+        wire(s, [(x0, y0), (500 + i * 8, y0), (500 + i * 8, 130 + i * 8), (lane, 130 + i * 8), (lane, tabs[0][1]), tabs[0]], c, 2.6, r=4)
+        wire(s, [(lane, tabs[1][1]), tabs[1]], c, 2.6, r=4)
+        s.circle(lane, tabs[1][1], 3, c)
     tag(s, 245, 150, "OUT1 / OUT2", W["mot"], 7.5, "middle")
     tag(s, 580, 150, "OUT3 / OUT4", W["mot"], 7.5, "middle")
     # GPIO -> IN1..IN4 and ENA/ENB, all routed under the L298N
@@ -371,7 +376,7 @@ def fig_motors() -> str:
     tag(s, 210, 515, "pin 9 GND → L298N GND (signal ground)", W["gnd"], 8, "middle")
     s.text(20, 540, "• Pull the ENA and ENB jumpers off: the Pi sets the speed on pins 33 and 35. Keep the 5V-EN jumper.", 9.5, INK)
     s.text(20, 556, "• +12V and GND come from the battery (power page). Leave the L298N's +5V terminal unconnected.", 9.5, INK)
-    s.text(20, 572, "• IN pins set the direction, ENA/ENB the speed. A wheel that runs backwards: swap its two motor wires.", 9.5, INK)
+    s.text(20, 572, "• Each side's two motors are joined (red to red, black to black) and run together: skid steering.", 9.5, INK)
     return s.svg()
 
 
@@ -536,24 +541,6 @@ def chassis_top(s, x, y, sc=1.0, bare=False):
         s.text(x + w / 2, y + h / 2 + 4, "acrylic deck · 4 TT motors · 4 wheels", 9 * k, "#33536b", "middle", 700)
 
 
-def chassis_2wd(s, x, y, sc=1.0, bare=False):
-    k = sc
-    w, h = 300 * k, 190 * k
-    for wx, wy in ((x + 30 * k, y - 2 * k), (x + 30 * k, y + h - 24 * k)):
-        s.rect(wx, wy, 70 * k, 26 * k, "#202326", "#111", rx=7)
-        for i in range(7):
-            s.line(wx + (6 + i * 9) * k, wy, wx + (6 + i * 9) * k, wy + 26 * k, "#3a3f44", 2)
-    s.rect(x + 10 * k, y + 22 * k, w - 20 * k, h - 44 * k, "#cfe6f5", "#7fa8c4", rx=40 * k, sw=1.5)
-    for hx in range(6):
-        for hy in range(3):
-            s.circle(x + (40 + hx * 45) * k, y + (55 + hy * 40) * k, 3 * k, "#ffffff", "#7fa8c4", 1)
-    caster(s, x + w - 40 * k, y + h / 2, 12 * k)
-    if bare:
-        for mx, my in ((x + 40 * k, y + 26 * k), (x + 40 * k, y + h - 48 * k)):
-            s.rect(mx, my, 64 * k, 22 * k, "#f2c230", "#b38a12", rx=3)
-        s.text(x + 150 * k, y + h / 2 + 4, "acrylic deck · 2 TT motors · caster", 9 * k, "#33536b", "middle", 700)
-
-
 def fig_layout_top() -> str:
     s = S(FIG_W, 420)
     x, y = 60, 40
@@ -583,7 +570,7 @@ def fig_layout_top() -> str:
         s.add(f'<g transform="rotate({ang} {cx} {cy})"><rect x="{cx - 14}" y="{cy - 28}" width="22" height="56" rx="4" fill="{BLUE}"/>'
               f'<circle cx="{cx + 4}" cy="{cy - 14}" r="9" fill="#c9ced3"/><circle cx="{cx + 4}" cy="{cy + 14}" r="9" fill="#c9ced3"/></g>')
         s.text(cx - 26, cy + 4, lab, 8.5, INK, "end", 800)
-    s.text(x + 20, y + H_ + 22, "Bottom deck: battery holder, L298N, the 2 motors and encoders. Keep AHT20 and MQ-135 away from the Pi CPU.", 9.5, MUTED, "start", 500)
+    s.text(x + 20, y + H_ + 22, "Bottom deck: battery holder, L298N, the 4 motors and encoders. Keep AHT20 and MQ-135 away from the Pi CPU.", 9.5, MUTED, "start", 500)
     return s.svg()
 
 
@@ -593,9 +580,9 @@ def fig_layout_side() -> str:
     s.line(20, gy + 30, 680, gy + 30, "#c4ccd3", 3)
     s.circle(480, gy, 32, "#202326", "#111", 2)
     s.circle(480, gy, 13, "#f2c230")
-    s.circle(140, gy + 16, 14, "#c9ced3", "#8b9399", 2)
-    s.rect(132, gy - 16, 16, 20, "#8b9399", rx=2)
-    s.text(140, gy + 50, "caster", 8.5, MUTED, "middle", 600)
+    s.rect(140, gy - 16, 60, 18, "#f2c230", "#b38a12", rx=3)
+    s.circle(170, gy, 32, "#202326", "#111", 2)
+    s.circle(170, gy, 13, "#f2c230")
     s.rect(100, gy - 24, 450, 8, "#cfe6f5", "#7fa8c4", rx=3)
     s.rect(440, gy - 16, 60, 18, "#f2c230", "#b38a12", rx=3)
     s.rect(200, gy - 18, 150, 20, "#2f7dd1", "#1d4f87", rx=5)
@@ -628,8 +615,8 @@ def fig_layout_side() -> str:
 def fig_motor_mount() -> str:
     from draw import encoder_disc
     s = S(FIG_W, 245)
-    chassis_2wd(s, 20, 20, 1.0, bare=True)
-    s.text(170, 236, "1. Screw the 2 motors under the bottom deck; caster at the back", 9, INK, "middle", 600)
+    chassis_top(s, 20, 20, 1.0, bare=True)
+    s.text(170, 236, "1. Screw the 4 motors under the bottom deck with the kit's brackets", 9, INK, "middle", 600)
     x, y = 380, 40
     tt_motor(s, x + 20, y + 90, 1.1, wheel=False)
     encoder_disc(s, x + 112, y + 72, 30)
@@ -640,6 +627,24 @@ def fig_motor_mount() -> str:
     return s.svg()
 
 
+
+
+def fig_motor_pairs() -> str:
+    s = S(FIG_W, 210)
+    for j, (side, y) in enumerate((("LEFT side", 40), ("RIGHT side", 130))):
+        tt_motor(s, 60, y, 0.8, wheel=False)
+        tt_motor(s, 200, y, 0.8, wheel=False)
+        s.text(20, y - 22, side + "  (front motor + rear motor)", 9.5, INK, "start", 800)
+        wire(s, [(134, y + 5), (150, y + 5), (150, y - 10), (330, y - 10)], "#e23b2e", 2.4, r=4)
+        wire(s, [(274, y + 5), (290, y + 5), (290, y - 10)], "#e23b2e", 2.4, r=4)
+        wire(s, [(134, y + 11), (160, y + 11), (160, y + 36), (330, y + 36)], "#2a2e31", 2.4, r=4)
+        wire(s, [(274, y + 11), (300, y + 11), (300, y + 36)], "#2a2e31", 2.4, r=4)
+        tag(s, 340, y + 16, f"to L298N {'OUT1 / OUT2' if j == 0 else 'OUT3 / OUT4'}", W["mot"], 8.5, "start")
+    s.text(500, 70, "Join red to red and black to black:", 9.5, INK, "start", 600)
+    s.text(500, 84, "the two motors of a side then work", 9.5, INK, "start", 600)
+    s.text(500, 98, "as one. A side that turns the wrong", 9.5, INK, "start", 600)
+    s.text(500, 112, "way: swap its two wires at the L298N.", 9.5, INK, "start", 600)
+    return s.svg()
 
 
 def fig_full_harness() -> str:
@@ -656,7 +661,7 @@ def fig_full_harness() -> str:
         "i2c": (20, 440, 180, 90, "#6b3fa0", "MPU6050 · AHT20 · ADS1115"),
         "mq": (260, 440, 180, 90, BLUE, "MQ-135"),
         "aud": (500, 440, 180, 90, "#555b62", "PAM8403 + speaker"),
-        "mot": (20, 560, 180, 60, "#8d5a3b", "2x TT motors"),
+        "mot": (20, 560, 180, 60, "#8d5a3b", "4x TT motors (2 per side)"),
     }
     for key, (x, y, w, h, c, t) in blocks.items():
         s.rect(x, y, w, h, c, rx=10)
@@ -720,7 +725,8 @@ def fig_cover_robot() -> str:
           '<stop offset="1" stop-color="#a9cde6"/></linearGradient></defs>')
     gy = 330
     s.add(f'<ellipse cx="280" cy="{gy + 32}" rx="230" ry="20" fill="#0b1a2b" opacity="0.18"/>')
-    s.add(f'<ellipse cx="280" cy="{gy - 4}" rx="16" ry="12" fill="#8b9399"/>')
+    for wx in (128, 432):     # rear wheels, behind
+        s.add(f'<ellipse cx="{wx}" cy="{gy - 10}" rx="26" ry="36" fill="#15181b"/>')
     s.add(f'<path d="M100 {gy - 40} L460 {gy - 40} L500 {gy - 10} L60 {gy - 10} Z" fill="url(#deck)" stroke="#6f9cbc" stroke-width="2"/>')
     s.rect(220, gy - 64, 120, 26, "#b8322a", rx=4)
     s.text(280, gy - 46, "L298N", 11, "#fff", "middle", 800)

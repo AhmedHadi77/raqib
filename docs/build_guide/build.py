@@ -33,8 +33,8 @@ BOM = [
         ("2-slot USB 18650 charger", 1, 12, "Charges the two cells"),
     ]),
     ("Moving", [
-        ("2WD smart car chassis kit: acrylic deck, 2 TT motors (3-6 V), 2 wheels, caster, screws", 1, 28,
-         "The body. Choose a kit whose motors have a shaft on both sides (for the encoder discs)"),
+        ("4WD smart car chassis kit: 2 acrylic decks, 4 TT motors (3-6 V), 4 wheels, brass standoffs, screws", 1, 40,
+         "The body: four driven wheels. Choose a kit whose motors have a shaft on both sides (for the encoder discs)"),
         ("L298N dual H-bridge motor driver", 1, 9, "Turns the Pi's small signals into motor power"),
         ("Speed encoder module (LM393 slot sensor) + 20-slot disc", 2, 4, "Counts wheel turns: 'go forward 2 m' stops at 2 m"),
     ]),
@@ -54,11 +54,11 @@ BOM = [
     ("Wiring and mounting", [
         ("Resistors: 1 kΩ x 3, 2 kΩ x 3, 4.7 kΩ x 1, 10 kΩ x 2, 20 kΩ x 1", 1, 3, "Voltage dividers: protect the Pi and measure the battery"),
         ("Perfboard / stripboard about 7 x 9 cm", 1, 3, "Your 'hub board'"),
-        ("Jumper wires: F-F and M-F, 40 of each", 1, 10, "Most connections plug in, no soldering"),
+        ("Jumper wires: F-F and M-F, 40 of each", 1, 8, "Most connections plug in, no soldering"),
         ("Male + female pin header strips", 1, 3, "Plug-in points on the hub board"),
         ("22 AWG wire, red + black, 1 m each", 1, 5, "Motor and battery wiring"),
-        ("M3 standoffs 35-40 mm + M2.5 / M3 screws (nylon kit)", 1, 8, "Second deck (spare acrylic, wood or plastic sheet) and board mounting"),
-        ("Zip ties, double-sided foam tape, heat-shrink", 1, 6, "Tidy, safe, nothing rattles loose"),
+        ("M2.5 screws + nylon washers (the kit already has the deck standoffs)", 1, 4, "Raspberry Pi and board mounting"),
+        ("Zip ties, double-sided foam tape, heat-shrink", 1, 4, "Tidy, safe, nothing rattles loose"),
     ]),
 ]
 TOOLS = [
@@ -90,14 +90,14 @@ CARDS = [
     ("buck", "XL4015 step-down converter", "Turns the battery's 7-8 V into a steady 5.1 V for the Pi.",
      "IN+ / IN− from the battery (1000 µF across them) · OUT+ / OUT− → the cut USB cable → Pi",
      "Turn the brass screw until OUT reads 5.1 V, BEFORE the Pi is plugged in."),
-    ("chassis", "2WD chassis kit", "Acrylic deck, two TT gear motors, two wheels and a caster.",
-     "Motors under the deck at the front · caster at the back · second deck on standoffs",
+    ("chassis", "4WD chassis kit", "Two acrylic decks, four TT gear motors, four wheels and brass standoffs.",
+     "4 motors under the bottom deck · second deck on the standoffs",
      "Check the motors have a shaft on both sides for the encoder discs."),
     ("motor", "TT gear motor + encoder disc", "3-6 V geared motor; the 20-slot disc tells how far it turned.",
      "2 solder tabs per motor (red / black wires)",
      "Solder wires before you mount the motors; it is hard afterwards."),
     ("l298n", "L298N motor driver", "Switches battery power to the motors forwards or backwards.",
-     "+12V / GND from the battery · OUT1-OUT4 to motors · IN1-IN4 and ENA/ENB from the Pi",
+     "+12V / GND from the battery · OUT1/OUT2 left motor pair · OUT3/OUT4 right motor pair · IN1-IN4 and ENA/ENB from the Pi",
      "Remove the ENA and ENB jumpers. Keep the 5V-EN jumper."),
     ("hc", "HC-SR04 ultrasonic", "Measures distance with sound, 2 cm to 4 m.",
      "VCC 5V · Trig (from Pi) · Echo (5 V out! needs a divider) · Gnd",
@@ -307,16 +307,21 @@ Your <b>phone's hotspot</b> is the best one: the robot then has internet for the
                     "Wi-Fi <b>Raqib-Robot</b> (password <code>raqib1234</code>) when no known Wi-Fi is around.</p>"
                   + check(["The Pi boots and you can log in (SSH or keyboard + screen)", "The installer ended with 'Done'",
                            "The phone app finds the robot ('Find automatically'); Robot health shows every part red: correct, nothing is wired yet"])))
-    H.append(step(2, "Chassis, motors and wheel encoders", "chassis kit, 2 TT motors, wheels, caster, 2 encoder discs + modules, wire, soldering iron",
+    H.append(step(2, "Chassis, 4 motors and wheel encoders", "4WD chassis kit (4 TT motors, 4 wheels), 2 encoder discs + modules, wire, soldering iron",
                   """<ol>
-<li><b>Solder</b> a red and a black 20 cm wire to the two tabs of each motor. Twist each pair.</li>
-<li>Fix the 2 motors under the deck with the kit's brackets and long screws, wires towards the middle. Screw the caster on at the back.</li>
-<li>Push an <b>encoder disc</b> onto the inner shaft of each motor.</li>
+<li><b>Solder</b> a red and a black 20 cm wire to the two tabs of each of the 4 motors. Twist each pair.</li>
+<li>Fix the 4 motors under the bottom deck with the kit's brackets and long screws, all wires towards the middle.</li>
+<li>Push an <b>encoder disc</b> onto the inner shaft of the two <b>front</b> motors (one per side is enough).</li>
 <li>Mount each encoder module so its disc spins inside the slot without touching (small bracket, standoff or hot glue).</li>
-<li>Push the wheels onto the outer shafts.</li></ol>"""
-                  + figure(D.fig_motor_mount(), "Motors under the deck; the encoder disc spins in the sensor's slot.")
-                  + check(["Both wheels turn freely by hand and the caster swivels", "Each encoder disc passes through its slot without rubbing",
-                           "Each motor has one red + one black wire to go to the L298N"])))
+<li>Push the 4 wheels onto the outer shafts.</li>
+<li>Join the two motors of each side: red to red, black to black. Each side now has one red + one black wire.</li></ol>
+<div class="note"><b>How 4 wheels steer (skid steering):</b> the two left wheels always turn together, and so do the two right
+wheels. Both sides forward = straight; one side slower = curve; sides in opposite directions = turn on the spot (the wheels
+skid a little sideways, which is normal). This is why one L298N is enough: one channel per side.</div>"""
+                  + figure(D.fig_motor_mount(), "Four motors under the bottom deck; the encoder disc spins in the sensor's slot.")
+                  + figure(D.fig_motor_pairs(), "Each side's two motors in parallel.")
+                  + check(["All 4 wheels turn freely by hand", "Each encoder disc passes through its slot without rubbing",
+                           "Left pair and right pair each have one red + one black wire to go to the L298N"])))
     H.append(step(3, "Power: one battery, the 5 V converter and the motor driver",
                   "battery holder + 2 cells, XL4015, 1000 µF capacitor, USB-A to USB-C cable, L298N, wire, multimeter",
                   """<ol>
@@ -332,7 +337,7 @@ wires, cut the thin green and white wires short and tape them.</li>
                   + figure(D.fig_power(), "Figure 3 - power wiring, and the battery divider used in step 10.")
                   + check(["Battery reads 7-8.4 V at the L298N +12V terminal", "XL4015 OUT reads 5.0-5.2 V",
                            "The Pi boots from the battery alone", "Charging: take the 2 cells out and put them in the USB charger"])))
-    H.append(step(4, "Mount the boards", "standoffs, screws, foam tape, a second deck (spare acrylic, plywood or plastic)",
+    H.append(step(4, "Mount the boards", "the kit's top deck and standoffs, screws, foam tape",
                   "<p>Follow the layout: the battery low and central, warm parts (Pi, XL4015, MQ-135) away from the AHT20, sonars on the front edge, "
                   "the webcam at the front looking forward.</p>"
                   + figure(D.fig_layout_side(), "Side view: two decks on 35-40 mm standoffs.")
@@ -361,13 +366,13 @@ battery divider (10 kΩ on top, 4.7 kΩ to GND). Put a header pin on the input a
                   """<ol><li>Pull the <b>ENA</b> and <b>ENB</b> jumpers off the L298N. Leave the 5V-EN jumper.</li>
 <li>Pi pins 11, 13, 15, 16 → L298N IN1, IN2, IN3, IN4 (direction).</li>
 <li>Pi pin 33 → ENA, pin 35 → ENB (speed).</li>
-<li>Left motor → OUT1/OUT2, right motor → OUT3/OUT4.</li>
+<li>Left motor pair → OUT1/OUT2, right motor pair → OUT3/OUT4.</li>
 <li>L298N GND → Pi pin 9 (a short signal ground).</li></ol>"""
                   + figure(D.fig_motors(), "Figure 6 - motor wiring.")
                   + cmd("python -m hwtest.test_motors          # robot on a box, wheels in the air!")
-                  + check(["Each side turns forwards when told 'forward'. Wrong way: swap that motor's OUT wires (or invert: true in config)",
+                  + check(["Each side turns forwards when told 'forward'. Wrong way: swap that pair's OUT wires (or invert: true in config)",
                            "Encoder ticks rise for both wheels (shown by the test)",
-                           "The Pi does not restart when both wheels start",
+                           "The Pi does not restart when all 4 wheels start",
                            "Floor test: python -m hwtest.test_motors --straight 5 drifts less than 20 cm"])))
     H.append(step(8, "Three distance sensors", "3 HC-SR04, F-F jumpers, hot glue or brackets",
                   "<ol><li>Mount the sensors on the front edge: left one turned 45° left, centre straight, right one 45° right.</li>"
@@ -413,7 +418,9 @@ battery divider (10 kΩ on top, 4.7 kΩ to GND). Put a header pin on the input a
         ("i2c_scan finds nothing", "I²C off, SDA/SCL swapped, or no 3.3 V on the rail", "sudo raspi-config → Interface → I2C on; check pins 3/5; measure the 3V3 rail"),
         ("One I²C board is missing", "Loose jumper", "Re-seat its 4 wires; run i2c_scan again"),
         ("Wheels do not turn", "ENA/ENB jumpers still on, ENA/ENB not on pins 33/35, battery off", "Remove the jumpers, check pins 33/35, switch on"),
-        ("One side turns backwards", "Motor wires reversed", "Swap that motor's two OUT wires, or set invert: true"),
+        ("One side turns backwards", "Motor wires reversed", "Swap that pair's two OUT wires, or set invert: true"),
+        ("One wheel of a pair turns the wrong way", "That motor's red/black reversed", "Swap its two wires where the pair is joined"),
+        ("Robot will not turn on the spot", "4 wheels skid hard on carpet / rubber floor", "Raise min_power to 0.45 and turn_speed to 0.6 in config.yaml"),
         ("Pi restarts when the motors start", "Weak cells, no capacitor, XL4015 set too low", "Charge the cells; 1000 µF on the XL4015 input; set 5.1-5.2 V"),
         ("Lightning-bolt / 'low voltage' warning", "XL4015 below 5 V or thin wires", "Set 5.1-5.2 V; keep the USB cable short"),
         ("Sonar always 400 cm (or 0)", "Trig/Echo swapped, no 5 V, wrong divider", "Check the pin numbers and measure 5 V at the sensor"),

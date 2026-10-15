@@ -241,7 +241,7 @@ def pi4(s, x, y, sc=1.0, show_header_labels=False):
 def sd_card(s, x, y):
     s.path(f"M{x} {y} h46 l10 10 v62 h-56 z", "#2b2f35", "#14171a", 1.5)
     s.rect(x + 6, y + 8, 40, 30, "#c8102e", rx=2)
-    s.text(x + 26, y + 27, "32GB", 10, "#fff", "middle", 800)
+    s.text(x + 26, y + 27, "16GB", 10, "#fff", "middle", 800)
     s.text(x + 28, y + 56, "A1 · C10", 8, "#d0d4d8", "middle", 600)
     for i in range(7):
         s.rect(x + 6 + i * 6.6, y + 62, 4, 9, GOLD, rx=1)

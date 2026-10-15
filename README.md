@@ -184,6 +184,9 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 
 ## When the hardware arrives
 
+**The whole robot on one page:** [docs/Raqib_Full_Wiring_Diagram.pdf](docs/Raqib_Full_Wiring_Diagram.pdf) (A3 poster, also as .png;
+`python docs/build_guide/poster.py`).
+
 **Every part pictured, the boards pin by pin, the robot's structure and every wire:**
 [docs/Raqib_Parts_and_Wiring_Atlas.pdf](docs/Raqib_Parts_and_Wiring_Atlas.pdf) (`python docs/build_guide/atlas.py`).
 

@@ -1,6 +1,7 @@
 """Budget build: AHT20/BMP280 drivers, battery on the ADS1115, and 'looking' by turning the robot (no servos)."""
 import math
 import time
+import pytest
 
 from robot.hal.real import AHT20, BMP280, AdsBattery, BudgetEnv
 
@@ -207,6 +208,7 @@ def test_soft_start_limits_speed_up_but_stops_at_once():
 
 
 def test_real_motors_soft_start_with_mock_pins():
+    pytest.importorskip("gpiozero")
     from gpiozero import Device
     from gpiozero.pins.mock import MockFactory, MockPWMPin
 
@@ -234,6 +236,7 @@ def test_real_motors_soft_start_with_mock_pins():
 def test_sonars_ping_one_after_another_with_a_gap():
     import threading as _t
 
+    pytest.importorskip("gpiozero")
     from gpiozero import Device
     from gpiozero.pins.mock import MockFactory
 

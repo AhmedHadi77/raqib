@@ -606,10 +606,20 @@ class RobotApp:
                 if cancel.is_set():
                     raise CommandError("cancelled", "sound scan cancelled")
                 a = self.audio.listen(float(seconds))
+                if not a.get("voice_like", False):
+                    # people pause between words: a silent window gets one second chance before it counts
+                    b = self.audio.listen(float(seconds))
+                    if b.get("voice_like", False) or b["db"] > a["db"]:
+                        a = b
                 readings.append({"heading_deg": round(self.sensors.heading, 1), "db": a["db"], "label": a["label"],
                                  "voice_like": a.get("voice_like", False)})
                 self._turn(step, cancel)
-            voiced = [r for r in readings if r["voice_like"]] or readings
+            # a heading counts as voiced if it or a neighbour sounded voice-like: one short sample that
+            # misses the voice must not make the robot face the wrong (quieter) neighbour
+            n = len(readings)
+            voiced = [r for i, r in enumerate(readings)
+                      if r["voice_like"] or readings[i - 1]["voice_like"] or readings[(i + 1) % n]["voice_like"]] \
+                if any(r["voice_like"] for r in readings) else readings
             best = max(voiced, key=lambda r: r["db"])
             spread = round(max(r["db"] for r in readings) - min(r["db"] for r in readings), 1)
             # refine between steps: fit a parabola through the loudest reading and its two neighbours

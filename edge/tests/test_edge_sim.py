@@ -138,7 +138,7 @@ def test_sound_scan_faces_the_person_talking():
         assert r["status"] == "ok" and r["result"]["voice_like"]
         with w.lock:
             facing = math.degrees(w.theta)
-        assert abs(facing - math.degrees(math.atan2(1.35, 1.2))) < 25     # 45 deg scan steps, refined
+        assert abs(facing - math.degrees(math.atan2(1.35, 1.2))) < 25, (facing, r["result"]["readings"])   # 45 deg steps, refined
     finally:
         app.shutdown()
 

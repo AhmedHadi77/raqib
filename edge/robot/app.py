@@ -157,7 +157,7 @@ class RobotApp:
             "health": self.hw.health,
             "faults": self.hw.faults(),
             "server": self.mqtt.server[0] if self.mqtt and getattr(self.mqtt, "server", None) else None,
-            "software": {"version": "2.4.1"},
+            "software": {"version": "2.5.0"},
         }
 
     def _profile(self) -> str:

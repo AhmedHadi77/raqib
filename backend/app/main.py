@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
         await S.broker.shutdown()
 
 
-APP_VERSION = "2.4.1"
+APP_VERSION = "2.5.0"
 app = FastAPI(title=f"{settings.product_name} - AI Inspection Robot API", version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
                    allow_methods=["*"], allow_headers=["*"])
@@ -258,7 +258,7 @@ async def users_delete(username: str, user: dict = Depends(require_role("admin")
 # ======================================================================= voice
 # ======================================================================= virtual wiring (Wiring Bench)
 WIRING_FILE = Path(settings.data_dir) / "wiring.json"
-WIRING_SPEC = "budget-1"          # bench parts changed (RM 500 build): older saved wiring is for parts the robot no longer has
+WIRING_SPEC = "reliable-1"        # bench parts changed (reliable RM 500 build): older saved wiring is for parts the robot no longer has
 
 
 def _wiring_saved() -> dict:
@@ -728,10 +728,14 @@ async def search(q: str, zone: str | None = None, days: int | None = None, k: in
 
 
 @app.post("/memory/seed")
-async def seed(n: int = 60, user: dict = Depends(require_role("admin"))):
+async def seed(n: int = 60, gas: bool | None = None, user: dict = Depends(require_role("admin"))):
     if S.memory is None:
         raise HTTPException(503, "semantic memory not ready")
-    count = await asyncio.to_thread(S.memory.seed, n)
+    if gas is None:      # match the robot: no gas sensor fitted -> no air-quality readings in the fake history
+        r = S.bridge.robots.get(settings.robot_id)
+        env = ((r.telemetry or {}).get("environment") or {}) if r else {}
+        gas = env.get("gas_verdict") != "NOT_MEASURED"
+    count = await asyncio.to_thread(S.memory.seed, n, None, gas)
     S.store.audit(user["sub"], "memory_seed", {"n": n})
     return {"seeded": count, "total": S.memory.count()}
 

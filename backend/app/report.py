@@ -28,6 +28,7 @@ GAS_TEXT = {
     "ELEVATED": "ELEVATED - monitor",
     "WARNING": "WARNING (Discomfort Hazard) - ventilation required",
     "HAZARD": "HAZARD - ventilate immediately and evacuate if needed",
+    "NOT_MEASURED": "Not measured (no gas sensor fitted)",
 }
 
 
@@ -140,7 +141,8 @@ def zone_text(z: ZoneInspection) -> str:
         parts.append("Fire extinguisher present." if v.extinguisher_present else "No fire extinguisher seen.")
     if e and e.get("temperature_c") is not None:
         parts.append(f"Temperature {e['temperature_c']:.1f}C humidity {e['humidity_pct']:.0f}% comfort "
-                     f"{z.comfort_verdict}. Air quality index {e.get('aqi')} {e.get('aqi_label')} gas {e.get('gas_verdict')}.")
+                     f"{z.comfort_verdict}. " + (f"Air quality index {e.get('aqi')} {e.get('aqi_label')} gas {e.get('gas_verdict')}."
+                                                 if e.get("aqi") is not None else "Air quality not measured (no gas sensor)."))
     if a:
         parts.append(f"Audio: {a.get('title', a.get('label'))} at {a.get('db')} dB.")
     if z.anomalies:
@@ -166,9 +168,12 @@ def render_markdown(r: InspectionReport) -> str:
             climate = "BME680" if e.get("gas_resistance_ohm") else "AHT20 + BMP280"
             lines.append(f"2. **Temperature & comfort ({climate}):** {e['temperature_c']:.1f}°C, {e['humidity_pct']:.0f}% RH. "
                          f"Comfort verdict: **{COMFORT_TEXT.get(z.comfort_verdict, z.comfort_verdict)}**.")
-            lines.append(f"3. **Gas & air quality ({'BME680 + ' if e.get('gas_resistance_ohm') else ''}MQ-135):** AQI {e.get('aqi')} ({e.get('aqi_label')})"
-                         + (f", ~{e.get('mq135_ppm')} ppm CO₂-eq" if e.get("mq135_ppm") else "")
-                         + f". Gas safety verdict: **{GAS_TEXT.get(e.get('gas_verdict'), e.get('gas_verdict'))}**.")
+            if e.get("gas_verdict") == "NOT_MEASURED" or (e.get("aqi") is None and not e.get("mq135_ppm")):
+                lines.append("3. **Gas & air quality:** not measured (this robot has no gas sensor fitted).")
+            else:
+                lines.append(f"3. **Gas & air quality ({'BME680 + ' if e.get('gas_resistance_ohm') else ''}MQ-135):** AQI {e.get('aqi')} ({e.get('aqi_label')})"
+                             + (f", ~{e.get('mq135_ppm')} ppm CO₂-eq" if e.get("mq135_ppm") else "")
+                             + f". Gas safety verdict: **{GAS_TEXT.get(e.get('gas_verdict'), e.get('gas_verdict'))}**.")
         if v:
             on = [n for n, f in (("ceiling lights", v.lights_on), ("projector", v.projector_on),
                                  ("monitors", v.monitors_on)) if f]
@@ -224,7 +229,8 @@ def render_html(r: InspectionReport, data_dir: str) -> str:
             facts.append(("Occupancy", f"{v.occupants} people"))
         if e.get("temperature_c") is not None:
             facts += [("Temperature", f"{e['temperature_c']:.1f} °C"), ("Humidity", f"{e['humidity_pct']:.0f} %"),
-                      ("Air quality", f"AQI {e.get('aqi')} ({esc(e.get('aqi_label'))})"),
+                      ("Air quality", f"AQI {e.get('aqi')} ({esc(e.get('aqi_label'))})" if e.get("aqi") is not None
+                       else "not measured (no gas sensor)"),
                       ("Comfort", COMFORT_TEXT.get(z.comfort_verdict, z.comfort_verdict)),
                       ("Gas safety", GAS_TEXT.get(e.get("gas_verdict"), e.get("gas_verdict")))]
         if a:

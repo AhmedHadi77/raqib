@@ -6,8 +6,8 @@ reports each room's climate, a camera that renders a synthetic picture of the ro
 a microphone that synthesises the room's sound signature.
 
 `sim_build` picks which robot is simulated:
-  budget (default) - the RM 500 build: fixed USB webcam (the robot turns to look), AHT20 + BMP280 (no VOC
-                     gas resistance), one 2 x 18650 pack measured through the ADS1115
+  budget (default) - the reliable RM 500 build: 4WD, fixed USB webcam (the robot turns to look), AHT20 + BMP280,
+                     no gas sensor, no wheel encoders (distance from motor time + IMU), Pi on a power bank
   full             - PCA9685 + pan/tilt servos, BME680 with VOC, 3-cell UPS module
 """
 from __future__ import annotations
@@ -317,8 +317,9 @@ class SimImu(Imu):
 
 
 class SimEnv(EnvSensor):
-    def __init__(self, w: SimWorld, cfg: dict, voc: bool = True):
+    def __init__(self, w: SimWorld, cfg: dict, voc: bool = True, gas: bool = True):
         self.w = w
+        self.gas = gas                                   # False = no MQ-135 fitted
         self.voc = voc                                   # BME680 has a VOC gas resistance, the AHT20 + BMP280 does not
         self.r0 = float(cfg.get("environment", {}).get("mq135_r0", 76.63))
         self.rl = float(cfg.get("hardware", {}).get("mq135_load_resistor_kohm", 10.0))
@@ -335,7 +336,7 @@ class SimEnv(EnvSensor):
             humidity_pct=float(sc.get("humidity_pct", 50.0)) + random.gauss(0, 0.6),
             pressure_hpa=1009.0 + random.gauss(0, 0.3),
             gas_resistance_ohm=gas if self.voc else None,
-            mq135_volts=vout,
+            mq135_volts=vout if self.gas else None,
         )
 
 
@@ -575,16 +576,28 @@ class SimBattery(Battery):
 
 
 SIM_PARTS = {
-    "budget": {"motors": "simulated L298N + 4 TT motors, speed on GPIO 13/19", "pan_tilt": "fixed camera: the robot turns to look around",
-               "ultrasonic": "simulated 3x HC-SR04", "encoders": "simulated", "imu": "simulated MPU6050",
-               "environment": "simulated AHT20 + BMP280 + MQ-135", "camera": "simulated USB webcam",
-               "microphone": "simulated webcam microphone", "speaker": "simulated PAM8403 on the audio jack",
-               "battery": "simulated 2x18650 on ADS1115 A1"},
+    "budget": {"motors": "simulated L298N + 4 TT motors, speed on GPIO 13/19",
+               "pan_tilt": "fixed camera: the robot turns to look around",
+               "ultrasonic": "simulated 3x HC-SR04", "encoders": "not fitted: distance from motor time + MPU6050 heading",
+               "imu": "simulated MPU6050", "environment": "simulated AHT20 + BMP280 · no gas sensor fitted",
+               "camera": "simulated USB webcam", "microphone": "simulated webcam microphone",
+               "speaker": "simulated PAM8403 on the audio jack",
+               "battery": "not measured: Pi on a power bank (see its LEDs), motors on 2 x 18650"},
     "full": {"motors": "simulated PCA9685 + L298N", "pan_tilt": "simulated pan/tilt servos",
              "ultrasonic": "simulated 3x HC-SR04", "encoders": "simulated", "imu": "simulated MPU6050",
              "environment": "simulated BME680 + MQ-135", "camera": "simulated Pi Camera",
              "microphone": "simulated USB microphone", "speaker": "simulated speaker", "battery": "simulated UPS gauge"},
 }
+
+
+class _NoEncoders(Encoders):
+    def ticks(self) -> tuple[int, int]:
+        return 0, 0
+
+
+class _NoBattery(Battery):
+    def read(self) -> BatteryReading:
+        return BatteryReading(None, None)
 
 
 def create_sim_hardware(cfg: dict) -> Hardware:
@@ -594,22 +607,22 @@ def create_sim_hardware(cfg: dict) -> Hardware:
     world = load_sim_world(cfg.get("sim_world_path"))
     w = SimWorld(cfg, world)
     hc = cfg.get("hardware", {})
-    cells = int(hc.get("battery_adc_cells", 2)) if budget else int(hc.get("battery_cells", 3))
+    cells = int(hc.get("battery_cells", 3))
     hw = Hardware(
         motors=SimMotors(w),
         pan_tilt=SimPanTilt(w),
         ultrasonics=SimUltrasonics(w),
-        encoders=SimEncoders(w),
+        encoders=_NoEncoders() if budget else SimEncoders(w),
         imu=SimImu(w),
-        env=SimEnv(w, cfg, voc=not budget),
+        env=SimEnv(w, cfg, voc=not budget, gas=not budget),
         camera=SimCamera(w, cfg),
         microphone=SimMicrophone(w),
         speaker=SimSpeaker(),
-        battery=SimBattery(w, cells),
+        battery=_NoBattery() if budget else SimBattery(w, cells),
         simulated=True,
         health={k: {"ok": True, "detail": d, "hint": ""} for k, d in SIM_PARTS[build].items()},
         extra={"world": w, "gas_baseline_ohm": None if budget else SIM_GAS_BASELINE_OHM,
-               "fixed_camera": budget, "build": build},
+               "fixed_camera": budget, "build": build, "encoders": not budget, "motor_deadband": 0.0},
     )
     _orig_close = hw.close
 

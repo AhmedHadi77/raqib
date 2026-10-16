@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from draw import (BANDS, BLUE, INK, MUTED, PCB, PCB_D, PI_PINS, S, W, ads1115, aht20, battery_2s, buck_xl4015,  # noqa: E402
-                  gpio_header, gy521, hcsr04, l298n, mq135, pam8403, pi4, resistor, slot_encoder, speaker, tag,
+                  gpio_header, gy521, hcsr04, l298n, mq135, pam8403, pi4, power_bank, resistor, slot_encoder, speaker, tag,
                   tt_motor, webcam, wire)
 
 OUT_PDF = HERE.parent / "Raqib_Full_Wiring_Diagram.pdf"
@@ -44,7 +44,7 @@ def title(s, x, y, t, size=13, c=INK):
 def build() -> str:
     s = S(CW, CH, bg="#ffffff")
     s.text(40, 46, "RAQIB · FULL WIRING DIAGRAM", 30, INK, "start", 800)
-    s.text(40, 74, "Budget robot (under RM 500) · every part and every wire · physical Pi pin numbers · "
+    s.text(40, 74, "Reliable budget robot 2.5 (≈ RM 495) · every part and every wire · physical Pi pin numbers · "
            "a dot = connected, crossing lines without a dot are not connected", 13, MUTED, "start", 600)
 
     # ------------------------------------------------------------------ hub rails (top centre) + buses
@@ -72,7 +72,7 @@ def build() -> str:
 
     # ------------------------------------------------------------------ the enlarged 40-pin header (centre)
     used = {1: C33, 2: C5, 3: CSDA, 5: CSCL, 6: CG, 9: CG, 11: CSIG, 13: CSIG, 15: CSIG, 16: CSIG, 18: W["sig3"],
-            22: W["sig3"], 29: W["sig4"], 31: W["sig4"], 32: W["sig5"], 33: CPWM, 35: CPWM, 36: W["sig5"], 38: W["sig6"],
+            22: W["sig3"], 32: W["sig5"], 33: CPWM, 35: CPWM, 36: W["sig5"], 38: W["sig6"],
             40: W["sig6"]}
     HXH, HYH = 978, 420
     P = gpio_header(s, HXH, HYH, used, pitch=28, labels="none")
@@ -101,23 +101,15 @@ def build() -> str:
     jack = (PX + 54 * k, PY + 56 * k)
     usb3 = (PX + 85 * k + 2, PY + 27 * k)
 
-    # ------------------------------------------------------------------ power (top left)
-    title(s, 30, 104, "Battery 2 × 18650 · 7.4 V")
+    # ------------------------------------------------------------------ power (top left): two separate batteries
+    title(s, 30, 104, "Motor battery 2 × 18650")
     bat = battery_2s(s, 30, 116, 1.0)
-    title(s, 250, 104, "XL4015 → 5.1 V")
-    bk = buck_xl4015(s, 250, 116, 1.0)
+    title(s, 270, 104, "Power bank (Pi only)")
+    pb = power_bank(s, 270, 118, 0.8)
     (bpx, bpy), (bnx, bny) = bat["+"], bat["-"]
-    wire(s, [(bpx, bpy), (230, bpy), (230, bk["IN+"][1]), bk["IN+"]], CBAT, SW, r=4)
-    wire(s, [(bnx, bny), (214, bny), (214, bk["IN-"][1] + 0), (240, bk["IN-"][1]), bk["IN-"]], CG, SW, r=4)
-    s.rect(236, bk["IN+"][1] - 6, 14, bk["IN-"][1] - bk["IN+"][1] + 12, "#1d3f8f", "#0f2457", rx=3)
-    s.text(243, 116 + 92, "1000 µF", 9, "#1d3f8f", "middle", 800)
-    # XL4015 out -> cut USB cable -> Pi USB-C
-    ox, oyp = bk["OUT+"]
-    _, oyn = bk["OUT-"]
-    wire(s, [(ox, oyp), (412, oyp), (412, 96)], "#e23b2e", 2.6, r=4)
-    wire(s, [(ox, oyn), (424, oyn), (424, 96)], "#2a2e31", 2.6, r=4)
-    wire(s, [(418, 96), (418, 88), (1460, 88), (1460, 300), (usbc[0], 300), usbc], "#555b62", 7, r=12)
-    label(s, 700, 92, "cut USB cable: XL4015 OUT → Pi USB-C power (5.1 V)", "#555b62")
+    ux0, uy0 = pb["usbc"]
+    wire(s, [(ux0, uy0), (418, uy0), (418, 88), (1460, 88), (1460, 300), (usbc[0], 300), usbc], "#555b62", 7, r=12)
+    label(s, 700, 92, "power bank's own USB-C cable → Pi USB-C power", "#555b62")
     # battery -> L298N (+12V / GND)
     LX, LY = 300, 470
     l2 = l298n(s, LX, LY, 1.0)
@@ -126,7 +118,7 @@ def build() -> str:
     dot(s, bpx + 6, bpy, CBAT)
     wire(s, [(bnx, bny), (bnx + 20, bny), (bnx + 20, 702), (l2["GND"][0], 702), l2["GND"]], CG, SW, r=5)
     dot(s, bnx + 20, bny, CG)
-    label(s, 190, 420, "battery + → L298N +12V", CBAT, "end", 9)
+    label(s, 190, 420, "motor battery + → L298N +12V", CBAT, "end", 9)
     # motors: 4WD, the front and rear motor of each side joined (red to red, black to black)
     k = 0.9
     s.text(40, 462, "LEFT pair (front + rear)", 10, INK, "start", 800)
@@ -166,18 +158,16 @@ def build() -> str:
         else:
             pts = [(px, py), (1076, py), (1076, 1010), (838, 1010), (838, level), (tx, level), (tx, ty)]
         wire(s, pts, c, SW, r=5)
-    label(s, 40, 806, "pin 33 → ENA · pin 35 → ENB (speed) · pins 11/13/15/16 → IN1-IN4 · pin 9 → GND", CSIG, "start", 9)
+    label(s, 40, 788, "pin 33 → ENA · pin 35 → ENB (speed) · pins 11/13/15/16 → IN1-IN4", CSIG, "start", 9)
+    label(s, 40, 810, "pin 9 → L298N GND: COMMON GROUND between the two batteries (essential)", CG, "start", 10)
 
     # ------------------------------------------------------------------ I2C sensors (left middle)
     title(s, 40, 842, "MPU6050 (0x68)")
     mpu = gy521(s, 40, 856, 1.0)
     title(s, 210, 842, "AHT20 + BMP280")
     aht = aht20(s, 210, 856, 1.1)
-    title(s, 360, 842, "ADS1115 (0x48)")
-    ads = ads1115(s, 360, 856, 1.0)
     taps = [(mpu, "VCC", "3V3"), (mpu, "GND", "GND"), (mpu, "SCL", "SCL"), (mpu, "SDA", "SDA"),
-            (aht, "VIN", "3V3"), (aht, "GND", "GND"), (aht, "SCL", "SCL"), (aht, "SDA", "SDA"),
-            (ads, "VDD", "3V3"), (ads, "GND", "GND"), (ads, "SCL", "SCL"), (ads, "SDA", "SDA"), (ads, "ADDR", "GND")]
+            (aht, "VIN", "3V3"), (aht, "GND", "GND"), (aht, "SCL", "SCL"), (aht, "SDA", "SDA")]
     taps.sort(key=lambda t: t[0][t[1]][0])
     for i, (dev, pin, rail) in enumerate(taps):
         px, py = dev[pin]
@@ -185,51 +175,19 @@ def build() -> str:
         wire(s, [(px, py), (px, lvl), (LB[rail], lvl)], RC[rail], 2.4, r=3)
         dot(s, LB[rail], lvl, RC[rail])
 
-    # gas sensor + dividers (bottom left)
-    title(s, 40, 1056, "MQ-135 gas sensor")
-    mq = mq135(s, 40, 1068, 1.0)
-    for pin, rail, lvl in (("VCC", "5V", 1196), ("GND", "GND", 1186)):
-        px, py = mq[pin]
-        wire(s, [(px, py), (px, lvl), (LB[rail], lvl)], RC[rail], 2.4, r=3)
-        dot(s, LB[rail], lvl, RC[rail])
-    ax, ay = mq["AO"]
-    resistor(s, 230, 1080, 230, 1120, BANDS["10k"])
-    resistor(s, 230, 1120, 230, 1160, BANDS["20k"])
-    s.circle(230, 1120, 3.4, INK)
-    s.text(240, 1102, "10k", 8.5, INK, "start", 700)
-    s.text(240, 1146, "20k", 8.5, INK, "start", 700)
-    wire(s, [(ax, ay), (ax, 1212), (204, 1212), (204, 1068), (230, 1068), (230, 1080)], "#7a7f87", 2.4, r=4)
-    wire(s, [(230, 1160), (230, 1176), (LB["GND"], 1176)], CG, 2.4, r=3)
-    dot(s, LB["GND"], 1176, CG)
-    a0x, a0y = ads["A0"]
-    wire(s, [(230, 1120), (300, 1120), (300, 1030), (a0x, 1030), (a0x, a0y)], "#7a7f87", 2.4, r=4)
-    label(s, 252, 1240, "MQ-135 divider (on the hub)", "#7a7f87", "start", 8.5)
-    # battery divider -> A1
-    resistor(s, 610, 640, 610, 690, BANDS["10k"])
-    resistor(s, 610, 690, 610, 740, BANDS["4k7"])
-    s.circle(610, 690, 3.4, INK)
-    s.text(596, 668, "10k", 8.5, INK, "end", 700)
-    s.text(596, 720, "4.7k", 8.5, INK, "end", 700)
-    wire(s, [(bpx + 6, 300), (610, 300), (610, 640)], CBAT, 2.4, r=4)
-    dot(s, bpx + 6, 300, CBAT)
-    wire(s, [(610, 740), (610, 760), (LB["GND"], 760)], CG, 2.4, r=3)
-    dot(s, LB["GND"], 760, CG)
-    a1x, a1y = ads["A1"]
-    wire(s, [(610, 690), (632, 690), (632, 1018), (a1x, 1018), (a1x, a1y)], CBAT, 2.4, r=4)
-    label(s, 602, 628, "battery divider (hub)", CBAT, "end", 8)
-
-    # wheel encoders (bottom middle-left)
-    for j, (name, pin, x) in enumerate((("LEFT encoder", 29, 360), ("RIGHT encoder", 31, 510))):
-        title(s, x, 1078, name, 11)
-        e = slot_encoder(s, x, 1110, 1.1)
-        for p_, rail, lvl in (("VCC", "3V3", 1262 - j * 20), ("GND", "GND", 1252 - j * 20)):
-            px, py = e[p_]
-            wire(s, [(px, py), (px, lvl), (LB[rail], lvl)], RC[rail], 2.4, r=3)
-            dot(s, LB[rail], lvl, RC[rail])
-        dx, dy = e["D0"]
-        hx, hy, _ = P[pin]
-        lane = 836 - j * 12
-        wire(s, [(dx, dy), (dx, 1282 + j * 10), (lane, 1282 + j * 10), (lane, hy), (hx, hy)], W["sig4"], SW, r=5)
+    # not fitted in this build + calibration note (bottom left)
+    s.rect(40, 1060, 560, 230, "#f4f7fa", "#c9d3dc", rx=12, sw=1.5)
+    s.text(60, 1092, "Left out on purpose (reliable build)", 14, INK, "start", 800)
+    for i, line in enumerate((
+            "• No 5 V converter to adjust: the Pi runs on its own power bank",
+            "• No wheel encoders: distance = motor power × time, turns from the MPU6050",
+            "• No gas sensor / ADS1115: the app shows air quality as 'not measured'",
+            "• No battery divider: the power bank's LEDs show its charge",
+            "",
+            "Before the first run: python -m hwtest.test_motors --deadband,",
+            "then --calibrate on the floor (build guide step 10).",
+            "Upgrades later: MQ-135 + ADS1115 (gas), slot encoders on pins 29 / 31.")):
+        s.text(60, 1124 + i * 20, line, 11.5, INK if i < 4 else MUTED, "start", 600 if i < 4 else 500)
 
     # ------------------------------------------------------------------ ultrasonic sensors (right)
     sonars = [("CENTRE", 470, 18, 22), ("LEFT (45° left)", 680, 32, 36), ("RIGHT (45° right)", 890, 38, 40)]
@@ -284,9 +242,9 @@ def build() -> str:
 
     # ------------------------------------------------------------------ legend
     ly = 1370
-    items = [(C5, "5 V"), (C33, "3.3 V"), (CG, "GND"), (CSDA, "I²C SDA"), (CSCL, "I²C SCL"), (CBAT, "battery 7.4 V"),
+    items = [(C5, "5 V"), (C33, "3.3 V"), (CG, "GND"), (CSDA, "I²C SDA"), (CSCL, "I²C SCL"), (CBAT, "motor battery 7.4 V"),
              (CPWM, "PWM speed"), (CSIG, "motor direction"), (W["sig3"], "sonar centre"), (W["sig5"], "sonar left"),
-             (W["sig6"], "sonar right"), (W["sig4"], "encoders"), ("#7a7f87", "analog / divider"), ("#555b62", "USB cable")]
+             (W["sig6"], "sonar right"), ("#7a7f87", "Echo before its divider"), ("#555b62", "USB cable")]
     x = 40
     for c, t in items:
         s.rect(x, ly - 8, 26, 8, c, rx=4)

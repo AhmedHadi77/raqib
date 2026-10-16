@@ -25,7 +25,7 @@ const rim = new THREE.DirectionalLight(0xffffff, 0.6); rim.position.set(-200, 12
 scene.fog = new THREE.Fog(0xeef2f6, 1400, 3200);
 const ground = new THREE.Mesh(new THREE.CircleGeometry(6000, 64), new THREE.MeshStandardMaterial({ color: 0xe3e8ee, roughness: 0.95 }));
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-await loadTextures(['pi', 'l298n', 'xl4015', 'hcsr04', 'mpu', 'aht', 'ads', 'mq', 'pam', 'enc', 'battery', 'hub']);
+await loadTextures(['pi', 'l298n', 'hcsr04', 'mpu', 'aht', 'pam', 'battery', 'hub']);
 buildRobot(scene);
 const VIEWS = {   // camera position, target, fov
   hero: [[560, 390, 470], [-8, 72, 0], 20],

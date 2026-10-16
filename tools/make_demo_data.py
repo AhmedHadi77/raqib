@@ -149,7 +149,7 @@ def main():
 
         http("POST", "/memory/seed?n=60", token=tok, timeout=120)
         out["search"] = {q: http("GET", f"/search?q={urllib.request.quote(q)}&k=10", token=tok)
-                         for q in ("over-cooled rooms", "air quality warning", "blocked exit", "lights left on")}
+                         for q in ("over-cooled rooms", "hot and humid rooms", "blocked exit", "lights left on")}
         out["history"] = http("GET", f"{R}/history?minutes=15", token=tok)
     finally:
         for p in (robot, backend):

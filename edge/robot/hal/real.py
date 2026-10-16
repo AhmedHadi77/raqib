@@ -112,7 +112,10 @@ def _setup_pin_factory(name: str | None):
 # ======================================================================= motors
 class RealMotors(Motors):
     """L298N: GPIO direction pins (IN1-IN4) + speed PWM on ENA/ENB, either from a PCA9685 channel or straight
-    from a Pi GPIO pin (budget build: no PCA9685, `pwm_pin` in the motor config)."""
+    from a Pi GPIO pin (budget build: no PCA9685, `pwm_pin` in the motor config).
+
+    Soft start: speeding up is limited to `motor_ramp_per_s` (default 4.0 = 0 -> full power in 0.25 s), so four
+    TT motors starting together do not pull a current spike. Slowing down and stopping are always immediate."""
 
     def __init__(self, pca, hw: dict):
         from gpiozero import DigitalOutputDevice, PWMOutputDevice
@@ -130,7 +133,13 @@ class RealMotors(Motors):
                 if c.get("pwm_pin") is None:
                     raise RuntimeError(f"no PCA9685 and no pwm_pin for motor_{side} in config.yaml")
                 self.pwm[side] = PWMOutputDevice(int(c["pwm_pin"]), frequency=hz)
+        self.ramp = max(0.5, float(hw.get("motor_ramp_per_s", 4.0)))
+        self.target = {"left": 0.0, "right": 0.0}
+        self.out = {"left": 0.0, "right": 0.0}
+        self._lock = threading.Lock()
+        self._stop_evt = threading.Event()
         self.stop()
+        threading.Thread(target=self._ramp_loop, name="motor-ramp", daemon=True).start()
 
     def _set(self, side: str, value: float):
         c = self.cfg[side]
@@ -148,12 +157,44 @@ class RealMotors(Motors):
         else:
             self.pwm[side].value = min(1.0, abs(value))
 
+    @staticmethod
+    def _step(out: float, target: float, max_up: float) -> float:
+        """One soft-start step: slowing down / stopping is immediate, speeding up is limited to max_up."""
+        if target == 0.0 or out * target < 0.0:          # stop, or a change of direction: drop to zero now
+            out = 0.0
+        if abs(target) <= abs(out):                        # slowing down
+            return target
+        return out + math.copysign(min(max_up, abs(target) - abs(out)), target)
+
+    @property
+    def applied(self) -> tuple[float, float]:
+        with self._lock:
+            return self.out["left"], self.out["right"]
+
     def set_wheels(self, left: float, right: float) -> None:
-        self._set("left", max(-1.0, min(1.0, left)))
-        self._set("right", max(-1.0, min(1.0, right)))
+        with self._lock:
+            self.target = {"left": max(-1.0, min(1.0, float(left))), "right": max(-1.0, min(1.0, float(right)))}
+            for side in ("left", "right"):
+                new = self._step(self.out[side], self.target[side], 0.0)    # immediate part only (stops, slow-downs)
+                if new != self.out[side] or new == 0.0:
+                    self.out[side] = new
+                    self._set(side, new)
+
+    def _ramp_loop(self):
+        last = time.monotonic()
+        while not self._stop_evt.wait(0.01):
+            now = time.monotonic()
+            dt, last = now - last, now
+            with self._lock:
+                for side in ("left", "right"):
+                    new = self._step(self.out[side], self.target[side], self.ramp * dt)
+                    if new != self.out[side]:
+                        self.out[side] = new
+                        self._set(side, new)
 
     def close(self) -> None:
         self.stop()
+        self._stop_evt.set()
         for a, b in self.pins.values():
             a.close(); b.close()
         for p in self.pwm.values():
@@ -181,15 +222,33 @@ class RealPanTilt(PanTilt):
 
 
 # =================================================================== ultrasonic
+_PING_GAP_LOCK = threading.Lock()
+
+
+def _quiet_distance_sensor_class(gap_s: float):
+    """gpiozero's DistanceSensor already lets only one sensor ping at a time (its ECHO_LOCK). This adds a quiet gap
+    after every ping, so late reflections of one sensor's ping (likely with three sensors fanned at 45 degrees)
+    die out before the next sensor listens."""
+    from gpiozero import DistanceSensor
+
+    class QuietDistanceSensor(DistanceSensor):
+        def _read(self):
+            with _PING_GAP_LOCK:
+                try:
+                    return super()._read()
+                finally:
+                    time.sleep(gap_s)
+
+    return QuietDistanceSensor
+
+
 class RealUltrasonics(Ultrasonics):
-    """3x HC-SR04 via gpiozero.DistanceSensor (each runs its own background thread)."""
+    """3x HC-SR04 via gpiozero (background threads), pinging one after another with a quiet gap."""
 
     def __init__(self, hw: dict):
-        from gpiozero import DistanceSensor
-
+        Sensor = _quiet_distance_sensor_class(float(hw.get("ultrasonic_gap_s", 0.012)))
         self.sensors = {
-            name: DistanceSensor(echo=p["echo"], trigger=p["trigger"], max_distance=4.0,
-                                 queue_len=2, partial=True)
+            name: Sensor(echo=p["echo"], trigger=p["trigger"], max_distance=4.0, queue_len=2, partial=True)
             for name, p in hw["ultrasonic"].items()
         }
 
@@ -768,12 +827,17 @@ def create_real_hardware(cfg: dict) -> Hardware:
         health["pan_tilt"] = {"ok": False, "detail": "PCA9685 not available", "hint": HINTS["pan_tilt"]}
 
     ultrasonics = build("ultrasonic", lambda: RealUltrasonics(hw), NullUltrasonics, "3x HC-SR04")
-    encoders = build("encoders", lambda: RealEncoders(hw), NullEncoders, "GPIO 5 / 6")
+    use_encoders = bool(hw.get("encoders", False))
+    if use_encoders:
+        encoders = build("encoders", lambda: RealEncoders(hw), NullEncoders, "GPIO 5 / 6")
+    else:
+        encoders = NullEncoders()
+        health["encoders"] = {"ok": True, "detail": "not fitted: distance from motor time + MPU6050 heading", "hint": ""}
     imu = build("imu", lambda: RealMPU6050(need_bus(), int(hw.get("mpu6050_address", 0x68))), NullImu, "MPU6050")
 
     # ---- ADC (shared by the MQ-135 and the battery voltage)
     ads = None
-    if bus is not None and hw.get("ads1115_address") is not None:
+    if bus is not None and hw.get("ads1115_address") is not None and hw.get("gas_sensor", "none") != "none":
         try:
             ads = ADS1115(bus, int(hw["ads1115_address"]))
             ads.read_volts(int(hw.get("mq135_channel", 0)))
@@ -793,7 +857,7 @@ def create_real_hardware(cfg: dict) -> Hardware:
             else:
                 env = BudgetEnv(need_bus(), hw, ads)
                 detail = "AHT20" + (" + BMP280" if env.bmp else "")
-            detail += " + MQ-135 (ADS1115)" if ads else " (no MQ-135 / ADS1115)"
+            detail += " + MQ-135 (ADS1115)" if ads else " · no gas sensor fitted"
             health["environment"] = {"ok": True, "detail": detail, "hint": ""}
             break
         except Exception as e:  # noqa: BLE001
@@ -821,6 +885,10 @@ def create_real_hardware(cfg: dict) -> Hardware:
         if b.read().voltage is not None:
             battery = b
             health["battery"] = {"ok": True, "detail": f"battery voltage on ADS1115 A{hw['battery_adc_channel']}", "hint": ""}
+    if battery is None and str(hw.get("battery_monitor", "auto")).lower() == "none":
+        battery = NullBattery()
+        health["battery"] = {"ok": True, "detail": "not measured: Pi on a power bank (see its LEDs), motors on 2 x 18650",
+                             "hint": ""}
     if battery is None:
         battery = NullBattery()
         health["battery"] = {"ok": False, "detail": "no battery gauge answering", "hint": HINTS["battery"]}
@@ -828,7 +896,8 @@ def create_real_hardware(cfg: dict) -> Hardware:
     parts = Hardware(
         motors=motors, pan_tilt=pan_tilt, ultrasonics=ultrasonics, encoders=encoders, imu=imu, env=env,
         camera=camera, microphone=mic, speaker=speaker, battery=battery,
-        simulated=False, extra={"pca": pca, "bus": bus, "fixed_camera": fixed_camera}, health=health,
+        simulated=False, extra={"pca": pca, "bus": bus, "fixed_camera": fixed_camera, "encoders": use_encoders,
+                                "motor_deadband": float(cfg.get("motion", {}).get("motor_deadband", 0.15))}, health=health,
     )
     faults = parts.faults()
     if faults:

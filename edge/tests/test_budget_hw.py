@@ -135,7 +135,7 @@ def test_audio_devices_are_picked_for_the_budget_build(monkeypatch):
 
 
 def test_simulator_imitates_the_budget_robot_by_default():
-    """sim_build: budget - fixed camera, AHT20 (no VOC) but still an AQI from the MQ-135, 2-cell battery."""
+    """sim_build: budget - fixed camera, AHT20 + BMP280, no gas sensor, no encoders, no battery gauge (power bank)."""
     from robot.app import RobotApp
     from robot.config import load_config
 
@@ -144,23 +144,131 @@ def test_simulator_imitates_the_budget_robot_by_default():
     try:
         info = app.info()
         assert info["hardware_profile"] == "budget" and info["fixed_camera"]
-        assert "AHT20" in info["health"]["environment"]["detail"]
+        assert all(h["ok"] for h in info["health"].values()), info["health"]
+        assert "no gas sensor" in info["health"]["environment"]["detail"]
+        assert "not fitted" in info["health"]["encoders"]["detail"]
         raw = app.hw.env.read()
-        assert raw.gas_resistance_ohm is None and raw.mq135_volts
-        assert 6.0 < app.hw.battery.read().voltage <= 8.4
+        assert raw.gas_resistance_ohm is None and raw.mq135_volts is None
+        assert app.hw.battery.read().percent is None
+        assert app.hw.encoders.ticks() == (0, 0) and not app.sensors.use_encoders
         env = app.run_command("read_environment", fresh=True)["result"]
-        assert env["aqi"] is not None and env["gas_resistance_ohm"] is None
+        assert env["gas_verdict"] == "NOT_MEASURED" and env["aqi"] is None and env["temperature_c"] > 0
     finally:
         app.shutdown()
     full = RobotApp(load_config(overrides={"sim_build": "full"}), connect_mqtt=False)
     try:
-        assert full.info()["hardware_profile"] == "full" and not full.info()["fixed_camera"]
+        assert full.info()["hardware_profile"] == "full" and not full.info()["fixed_camera"] and full.sensors.use_encoders
     finally:
         full.shutdown()
 
 
-def test_wiring_bench_battery_divider_and_webcam():
-    """Bench: the battery % needs the 10k/4.7k divider on A1; unplugging the webcam kills camera + microphone."""
+def test_distance_without_encoders_is_accurate():
+    """No encoders: 'move 1 m' measured from motor power x time + IMU heading ends within 5 % of 1 m."""
+    import math as _m
+
+    from robot.app import RobotApp
+    from robot.config import load_config
+
+    app = RobotApp(load_config(), connect_mqtt=False)
+    app.safety.cloud_timeout = 1e9
+    w = app.hw.extra["world"]
+    try:
+        with w.lock:
+            w.x, w.y, w.theta = 1.0, 0.0, 0.0
+        app.sensors.reset_pose(1.0, 0.0, 0.0)
+        time.sleep(0.3)
+        r = app.run_command("move", distance_m=1.0)
+        assert r["status"] == "ok", r
+        with w.lock:
+            real = _m.hypot(w.x - 1.0, w.y)
+        assert abs(real - 1.0) < 0.05, real
+        r = app.run_command("turn", angle_deg=90)
+        assert r["status"] == "ok"
+        with w.lock:
+            assert abs(_m.degrees(w.theta) - 90) < 8
+    finally:
+        app.shutdown()
+
+
+def test_soft_start_limits_speed_up_but_stops_at_once():
+    from robot.hal.real import RealMotors
+
+    step = RealMotors._step
+    assert step(0.0, 1.0, 0.04) == 0.04                 # speeding up: limited
+    assert step(0.5, 1.0, 0.04) == 0.54
+    assert step(0.8, 0.3, 0.04) == 0.3                  # slowing down: immediate
+    assert step(0.8, 0.0, 0.04) == 0.0                  # stop: immediate
+    assert step(0.6, -0.6, 0.04) == -0.04               # reversing: drop to 0 at once, then ramp
+    # 0 -> full power in about 0.25 s at 4.0 / s with 10 ms steps
+    out, n = 0.0, 0
+    while out < 1.0:
+        out, n = step(out, 1.0, 4.0 * 0.01), n + 1
+    assert 24 <= n <= 26
+
+
+def test_real_motors_soft_start_with_mock_pins():
+    from gpiozero import Device
+    from gpiozero.pins.mock import MockFactory, MockPWMPin
+
+    from robot.hal.real import RealMotors
+
+    Device.pin_factory = MockFactory(pin_class=MockPWMPin)
+    hw = {"motor_left": {"pwm_pin": 13, "in1": 17, "in2": 27}, "motor_right": {"pwm_pin": 19, "in1": 22, "in2": 23},
+          "motor_ramp_per_s": 4.0}
+    m = RealMotors(None, hw)
+    try:
+        m.set_wheels(1.0, 1.0)
+        assert m.applied == (0.0, 0.0)                  # not full power at once
+        time.sleep(0.12)
+        l, r = m.applied
+        assert 0.2 < l < 0.8 and l == r
+        time.sleep(0.3)
+        assert m.applied == (1.0, 1.0) and m.pwm["left"].value == 1.0
+        m.set_wheels(0.0, 0.0)                           # emergency stop is immediate
+        assert m.applied == (0.0, 0.0) and m.pwm["left"].value == 0.0
+    finally:
+        m.close()
+        Device.pin_factory = None
+
+
+def test_sonars_ping_one_after_another_with_a_gap():
+    import threading as _t
+
+    from gpiozero import Device
+    from gpiozero.pins.mock import MockFactory
+
+    from robot.hal import real
+
+    Device.pin_factory = MockFactory()
+    try:
+        Sensor = real._quiet_distance_sensor_class(0.05)
+        calls = []
+
+        def fake_read(self):
+            calls.append(("start", time.monotonic()))
+            time.sleep(0.01)
+            calls.append(("end", time.monotonic()))
+            return 0.5
+
+        Base = Sensor.__mro__[1]
+        orig = Base._read
+        Base._read = fake_read
+        try:
+            a, b = Sensor.__new__(Sensor), Sensor.__new__(Sensor)
+            ts = [_t.Thread(target=x._read) for x in (a, b)]
+            [t.start() for t in ts]
+            [t.join() for t in ts]
+        finally:
+            Base._read = orig
+        kinds = [k for k, _ in calls]
+        assert kinds == ["start", "end", "start", "end"]          # never overlapping
+        assert calls[2][1] - calls[1][1] >= 0.045                 # quiet gap before the next ping
+    finally:
+        Device.pin_factory = None
+
+
+def test_wiring_bench_reliable_build():
+    """Bench: power bank -> Pi; the motors need their own battery AND the common ground; webcam = camera + mic."""
     from robot.hal.harness import evaluate
     from robot.wiring_spec import PARTS
 
@@ -172,8 +280,12 @@ def test_wiring_bench_battery_divider_and_webcam():
                                                                {"p5": "pin:2", "p33": "pin:1", "gnd": "pin:6"}[s["cls"]])
     r = evaluate(good)
     assert r["drivable"] and all(v["ok"] for v in r["health"].values()), r["health"]
-    r = evaluate({k: v for k, v in good.items() if not k.startswith("batdiv.")})
-    assert not r["health"]["battery"]["ok"] and r["health"]["motors"]["ok"]
+    assert {p["id"] for p in PARTS} >= {"pbank", "l298", "motors", "aht", "cam", "spk"}
+    assert not {"enc", "ads", "mq", "batdiv", "buck"} & {p["id"] for p in PARTS}
+    r = evaluate({k: v for k, v in good.items() if k != "pbank.usb"})
+    assert not r["health"]["power"]["ok"] and not r["drivable"]
+    r = evaluate({k: v for k, v in good.items() if k != "l298.gndpi"})
+    assert not r["health"]["motors"]["ok"] and "ground" in r["health"]["motors"]["detail"]
     r = evaluate({k: v for k, v in good.items() if k != "cam.usb"})
     assert not r["health"]["camera"]["ok"] and not r["health"]["microphone"]["ok"]
     r = evaluate(dict(good, **{"l298.ena": "pin:35", "l298.enb": "pin:33"}))

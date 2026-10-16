@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from draw import (aht20, buck_xl4015, caster, webcam, BANDS, BLUE, BLUE_D, GOLD, INK, LINE, MUTED, PCB, PCB_D, PI_PINS, S, SILK, W, ads1115, battery_2s,
+from draw import (aht20, buck_xl4015, caster, power_bank, webcam, BANDS, BLUE, BLUE_D, GOLD, INK, LINE, MUTED, PCB, PCB_D, PI_PINS, S, SILK, W, ads1115, battery_2s,
                   bme680, board, cell_18650, chip, encoder_disc, gpio_header, gy521, hcsr04, header_row, jumper, l298n,
                   mq135, multimeter, pam8403, pca9685, pi4, pi_camera, resistor, rounded_path, sd_card, sg90,
                   slot_encoder, soldering_iron, speaker, tag, tt_motor, ups_3s, usb_mic, usb_soundcard, wire)
@@ -40,7 +40,7 @@ def fig_component(name: str) -> str:
              "imu": (150, 120), "bme": (120, 110), "mq": (140, 120), "ads": (170, 110), "mic": (130, 60), "usbsnd": (130, 60),
              "pam": (130, 80), "spk": (110, 110), "res": (230, 135),
              "aht": (115, 105), "webcam": (160, 110), "buck": (165, 85), "wires": (190, 110), "tools": (330, 180), "hub": (330, 200),
-             "standoff": (220, 110)}
+             "standoff": (220, 110), "pbank": (190, 96), "res2": (230, 70)}
     w, h = sizes[name]
     s = S(w, h)
     if name == "pi":
@@ -61,7 +61,12 @@ def fig_component(name: str) -> str:
         buck_xl4015(s, 12, 8, 1.0)
     elif name == "motor":
         tt_motor(s, 40, 70, 1.0)
-        encoder_disc(s, 160, 40, 24)
+    elif name == "pbank":
+        power_bank(s, 10, 9, 1.0)
+    elif name == "res2":
+        for i, (k, lab) in enumerate((("1k", "1 kΩ  brown-black-red  (x 3)"), ("2k", "2 kΩ  red-black-red  (x 3)"))):
+            resistor(s, 10, 20 + i * 28, 80, 20 + i * 28, BANDS[k])
+            s.text(88, 24 + i * 28, lab, 9, INK, "start", 600)
     elif name == "l298n":
         l298n(s, 15, 8, 1.0)
     elif name == "pca":
@@ -140,13 +145,12 @@ def hub_board(s, x, y, sc=1.0, compact=False):
         pts[name] = (x + 46 * k, ry)
         pts[name + "_r"] = (x + w - 14 * k, ry)
     if compact:
-        s.text(x + w / 2, y + h - 22 * k, "+ 3 echo dividers (1k/2k)", 8.5 * k, "#5b4520", "middle", 700)
-        s.text(x + w / 2, y + h - 9 * k, "+ MQ-135 (10k/20k) + battery (10k/4.7k)", 8.5 * k, "#5b4520", "middle", 700)
+        s.text(x + w / 2, y + h - 12 * k, "+ 3 echo dividers (1k / 2k)", 8.5 * k, "#5b4520", "middle", 700)
         return pts
     # three ECHO dividers + MQ divider, drawn vertically under the rails
-    names = [("ECHO L", "1k", "2k"), ("ECHO C", "1k", "2k"), ("ECHO R", "1k", "2k"), ("MQ AO", "10k", "20k"), ("BAT +", "10k", "4k7")]
+    names = [("ECHO L", "1k", "2k"), ("ECHO C", "1k", "2k"), ("ECHO R", "1k", "2k")]
     for i, (lab, top, bot) in enumerate(names):
-        cx = x + (52 + i * 54) * k
+        cx = x + (80 + i * 80) * k
         y_in = y + 96 * k
         y_mid = y + 128 * k
         y_gnd = y + 162 * k
@@ -174,11 +178,11 @@ def fig_overview() -> str:
             s.text(x + w / 2, y + 42 + i * 14, line, 9.5, fg, "middle", 500)
 
     box(250, 150, 200, 110, "Raspberry Pi 4", ["robot program + its own server", "AI agent · Wi-Fi to the phone", "USB webcam + mic · speaker"], PCB)
-    box(20, 20, 200, 90, "Power", ["one 2x18650 pack (7.4 V)", "XL4015 → 5.1 V for the Pi"], "#c0392b")
+    box(20, 20, 200, 90, "Power", ["power bank → Pi (5 V)", "2x18650 pack → motors"], "#c0392b")
     box(480, 20, 200, 90, "Phone app (APK)", ["Wi-Fi: hotspot, home, or", "the robot's own 'Raqib-Robot'"], "#2d6be0")
     box(20, 300, 200, 110, "Moving", ["4WD chassis, 4 TT motors", "L298N: one channel per side", "speed from Pi pins 33 / 35"], "#8d5a3b")
-    box(250, 300, 200, 110, "Seeing obstacles", ["3x HC-SR04 sonar", "2 wheel encoders", "MPU6050 motion sensor"], "#1e9e55")
-    box(480, 300, 200, 110, "Measuring the room", ["AHT20 + BMP280 climate", "MQ-135 gas → ADS1115", "webcam microphone"], "#8a55e8")
+    box(250, 300, 200, 110, "Seeing obstacles", ["3x HC-SR04 sonar", "MPU6050 motion sensor", "distance: motor time"], "#1e9e55")
+    box(480, 300, 200, 110, "Measuring the room", ["AHT20 + BMP280 climate", "webcam microphone", "camera + AI"], "#8a55e8")
     box(20, 150, 200, 110, "Sensor hub board", ["your perfboard: 5V, 3V3, GND,", "SDA, SCL rails + dividers"], "#b07d2c")
     for (x1, y1, x2, y2, c, lab) in ((120, 110, 300, 150, W["5v"], "5 V"), (580, 110, 400, 150, W["sda"], "Wi-Fi"),
                                      (220, 205, 250, 205, W["scl"], "I²C + GPIO"), (120, 260, 120, 300, W["gnd"], ""),
@@ -193,13 +197,12 @@ def fig_overview() -> str:
 # ======================================================================= Pi header map
 def fig_pi_header() -> str:
     used = {1: W["3v3"], 2: W["5v"], 3: W["sda"], 5: W["scl"], 6: W["gnd"], 9: W["gnd"], 11: W["sig1"], 13: W["sig1"],
-            15: W["sig2"], 16: W["sig2"], 18: W["sig3"], 22: W["sig3"], 29: W["sig4"], 31: W["sig4"], 32: W["sig5"], 33: W["pwm"], 35: "#c98a00",
+            15: W["sig2"], 16: W["sig2"], 18: W["sig3"], 22: W["sig3"], 32: W["sig5"], 33: W["pwm"], 35: "#c98a00",
             36: W["sig5"], 38: W["sig6"], 40: W["sig6"]}
     what = {1: "3.3 V → hub 3V3 rail", 2: "5 V → hub 5V rail", 3: "SDA → hub SDA rail", 5: "SCL → hub SCL rail",
             6: "GND → hub GND rail", 9: "GND → L298N GND (common ground)", 11: "L298N IN1 (left motors)",
             13: "L298N IN2 (left motors)", 15: "L298N IN3 (right motors)", 16: "L298N IN4 (right motors)",
-            18: "sonar CENTRE Trig", 22: "sonar CENTRE Echo (via divider)", 29: "left wheel encoder D0",
-            31: "right wheel encoder D0", 32: "sonar LEFT Trig",
+            18: "sonar CENTRE Trig", 22: "sonar CENTRE Echo (via divider)", 32: "sonar LEFT Trig",
             33: "L298N ENA (left speed, PWM)", 35: "L298N ENB (right speed, PWM)", 36: "sonar LEFT Echo (via divider)",
             38: "sonar RIGHT Trig", 40: "sonar RIGHT Echo (via divider)"}
     s = S(FIG_W, 440)
@@ -220,61 +223,32 @@ def fig_pi_header() -> str:
 
 # ======================================================================= power
 def fig_power() -> str:
-    s = S(FIG_W, 630)
+    s = S(FIG_W, 560)
+    s.text(20, 26, "Motor battery 2 × 18650 (7.4 V): motors only", 10, INK, "start", 800)
     bat = battery_2s(s, 20, 40, 1.0)
-    s.text(20, 30, "2 x 18650 holder with switch: the robot's only battery", 9.5, INK, "start", 800)
-    bk = buck_xl4015(s, 300, 40, 1.0)
-    s.text(300, 30, "XL4015 step-down → 5.1 V", 9.5, INK, "start", 800)
+    s.text(300, 26, "L298N motor driver", 10, INK, "start", 800)
+    l2 = l298n(s, 300, 36, 0.9)
     (bpx, bpy), (bnx, bny) = bat["+"], bat["-"]
-    # battery -> buck input (+ on top, − below)
-    wire(s, [(bpx, bpy), (262, bpy), (262, bk["IN+"][1]), bk["IN+"]], W["bat"], 3.4, r=5)
-    wire(s, [(bnx, bny), (244, bny), (244, bk["IN-"][1]), bk["IN-"]], W["gnd"], 3.4, r=5)
-    # 1000 µF across the buck input
-    cx = 282
-    s.rect(cx - 9, bk["IN+"][1] - 6, 18, bk["IN-"][1] - bk["IN+"][1] + 12, "#1d3f8f", "#0f2457", rx=4)
-    s.rect(cx - 9, bk["IN-"][1] - 2, 18, 8, "#c9ced3", rx=2)
-    s.circle(cx, bk["IN+"][1], 2.6, "#e7e7e7")
-    s.circle(cx, bk["IN-"][1], 2.6, "#e7e7e7")
-    tag(s, 300, 132, "1000 µF across IN+ / IN− (stripe = −)", "#1d3f8f", 7.5, "start")
-    # battery -> L298N +12V / GND
-    l2 = l298n(s, 250, 330, 0.9)
-    s.text(250, 322, "L298N motor driver", 9.5, INK, "start", 800)
-    wire(s, [(206, bpy), (206, 520), (l2["+12V"][0], 520), l2["+12V"]], W["bat"], 3.4, r=6)
-    wire(s, [(226, bny), (226, 505), (l2["GND"][0], 505), l2["GND"]], W["gnd"], 3.4, r=6)
-    s.circle(206, bpy, 3.6, W["bat"])
-    s.circle(226, bny, 3.6, INK)
-    tag(s, 120, 165, "7.4 V (8.4 V full) → L298N +12V", W["bat"], 8, "middle")
-    # buck out -> cut USB cable -> Pi USB-C
-    pk = 0.62
+    wire(s, [(bpx, bpy), (240, bpy), (240, 230), (l2["+12V"][0], 230), l2["+12V"]], W["bat"], 3.4, r=6)
+    wire(s, [(bnx, bny), (226, bny), (226, 244), (l2["GND"][0], 244), l2["GND"]], W["gnd"], 3.4, r=6)
+    tag(s, 120, 162, "+ → +12V · − → GND", W["bat"], 8.5, "middle")
+    s.text(20, 318, "USB power bank 10,000 mAh (5 V 3 A): the Pi only", 10, INK, "start", 800)
+    pb = power_bank(s, 20, 334, 1.0)
+    pk = 0.7
     k = 3.4 * pk
-    px0, py0 = 480, 170
-    pi4(s, px0, py0, pk)
-    usbc = (px0 + 11.5 * k, py0 + 56 * k + 2)
-    ox, oyp = bk["OUT+"]
-    _, oyn = bk["OUT-"]
-    wire(s, [(ox, oyp), (466, oyp), (466, 140)], "#e23b2e", 2.6, r=4)
-    wire(s, [(ox, oyn), (456, oyn), (456, 140)], "#2a2e31", 2.6, r=4)
-    wire(s, [(461, 140), (461, 316), (usbc[0], 316), usbc], "#555b62", 6, r=10)
-    tag(s, 580, 348, "USB-A → USB-C cable, A end cut off:", "#555b62", 8, "middle")
-    tag(s, 580, 366, "red → OUT+, black → OUT−, C end → Pi", "#555b62", 8, "middle")
-    # battery divider 10k / 4.7k -> ADS1115 A1
-    dx = 90
-    wire(s, [(206, 250), (dx, 250), (dx, 262)], W["bat"], 2.6, r=4)
-    resistor(s, dx, 262, dx, 322, BANDS["10k"])
-    resistor(s, dx, 322, dx, 382, BANDS["4k7"])
-    s.circle(dx, 322, 3.4, INK)
-    s.text(dx - 10, 296, "10 kΩ", 8.5, INK, "end", 700)
-    s.text(dx - 10, 356, "4.7 kΩ", 8.5, INK, "end", 700)
-    wire(s, [(dx, 382), (dx, 398)], W["gnd"], 2.6)
-    tag(s, dx, 412, "GND", W["gnd"], 8, "middle")
-    a = ads1115(s, 20, 450, 0.82)
-    s.text(20, 444, "ADS1115 (already on the I²C rails)", 8.5, INK, "start", 700)
-    a1x, a1y = a["A1"]
-    wire(s, [(dx, 322), (150, 322), (150, 540), (a1x, 540), (a1x, a1y)], "#7a7f87", 2.6, r=6)
-    tag(s, 158, 400, "→ ADS1115 A1", "#7a7f87", 8, "start")
-    s.text(20, 576, "One pack feeds everything: the L298N takes the battery straight, the XL4015 makes 5.1 V for the Pi. The 1000 µF", 9, MUTED)
-    s.text(20, 590, "capacitor stops motor starts from dipping the Pi's supply. All grounds are joined through the battery − wire.", 9, MUTED)
-    s.text(20, 608, "Set the XL4015 to 5.1 V with the multimeter BEFORE the Pi is plugged in. The divider lets the app show the battery %.", 9, INK, "start", 700)
+    PX, PY = 420, 300
+    pins = pi4(s, PX, PY, pk)
+    s.text(PX, PY - 10, "Raspberry Pi 4", 10, INK, "start", 800)
+    usbc = (PX + 11.5 * k, PY + 56 * k + 2)
+    ux, uy = pb["usbc"]
+    wire(s, [(ux, uy), (ux + 30, uy), (ux + 30, 480), (usbc[0], 480), usbc], "#555b62", 7, r=12)
+    tag(s, 300, 500, "short USB-C cable: power bank → Pi USB-C", "#555b62", 8.5, "middle")
+    # common ground L298N -> Pi pin 9
+    p9 = pins[9]
+    wire(s, [l2["GND"], (l2["GND"][0], 256), (690, 256), (690, p9[1] - 14), (p9[0], p9[1] - 14), p9], W["gnd"], 2.8, r=8)
+    tag(s, 560, 270, "L298N GND → Pi pin 9: COMMON GROUND (essential)", W["gnd"], 8.5, "middle")
+    s.text(20, 532, "Two batteries: motor current spikes can never restart the Pi, and there is no voltage to set by hand.", 9, MUTED)
+    s.text(20, 548, "The one wire that joins the two systems is the common ground; without it the motors ignore the Pi.", 9, INK, "start", 700)
     return s.svg()
 
 
@@ -290,8 +264,8 @@ def fig_hub() -> str:
         wire(s, [(120, ty), (tx, ty)], col[r], 3)
         tag(s, 115, ty + 3.5, lab[r], col[r], 8, "end")
     s.text(20, 150, "Each divider:", 10, INK, "start", 800)
-    for i, t in enumerate(["signal enters at the top", "top resistor (1k / 10k / 10k)", "middle → Pi pin / ADS1115 A0 / A1",
-                           "bottom (2k / 20k / 4.7k) → GND", "5 V → 3.3 V · battery 8.4 V → 2.7 V"]):
+    for i, t in enumerate(["sonar Echo (5 V) enters at the top", "top resistor 1 kΩ", "middle point → Pi pin",
+                           "bottom resistor 2 kΩ → GND", "5 V × 2/3 = 3.3 V: safe"]):
         s.text(20, 168 + i * 15, f"• {t}", 9.5, INK)
     s.text(505, 276, "Solder the rails as bare wire along the strips;", 8.5, MUTED, "middle")
     s.text(505, 288, "every module plugs into the rails with jumper wires.", 8.5, MUTED, "middle")
@@ -300,19 +274,18 @@ def fig_hub() -> str:
 
 # ======================================================================= I2C
 def fig_i2c() -> str:
-    s = S(FIG_W, 420)
+    s = S(FIG_W, 360)
     rails = [("3V3", W["3v3"]), ("GND", W["gnd"]), ("SDA", W["sda"]), ("SCL", W["scl"])]
     for i, (nm, c) in enumerate(rails):
         x = 24 + i * 24
-        s.line(x, 30, x, 300, c, 4)
-        s.text(x, 312, nm, 8, c if nm != "GND" else INK, "middle", 800)
-    s.text(60, 326, "hub rails", 9, MUTED, "middle", 700)
+        s.line(x, 30, x, 250, c, 4)
+        s.text(x, 262, nm, 8, c if nm != "GND" else INK, "middle", 800)
+    s.text(60, 276, "hub rails", 9, MUTED, "middle", 700)
     railx = {nm: 24 + i * 24 for i, (nm, _) in enumerate(rails)}
     col = dict(rails)
     devices = [
-        ("MPU6050  (0x68)", lambda x, y: gy521(s, x, y, 1.0), 150, 40, {"VCC": "3V3", "GND": "GND", "SDA": "SDA", "SCL": "SCL"}),
-        ("AHT20 + BMP280  (0x38 + 0x77)", lambda x, y: aht20(s, x, y, 1.15), 330, 40, {"VIN": "3V3", "GND": "GND", "SDA": "SDA", "SCL": "SCL"}),
-        ("ADS1115  (0x48)", lambda x, y: ads1115(s, x, y, 1.0), 500, 40, {"VDD": "3V3", "GND": "GND", "SDA": "SDA", "SCL": "SCL", "ADDR": "GND"}),
+        ("MPU6050  (0x68)", lambda x, y: gy521(s, x, y, 1.2), 170, 40, {"VCC": "3V3", "GND": "GND", "SDA": "SDA", "SCL": "SCL"}),
+        ("AHT20 + BMP280  (0x38 + 0x77)", lambda x, y: aht20(s, x, y, 1.4), 420, 40, {"VIN": "3V3", "GND": "GND", "SDA": "SDA", "SCL": "SCL"}),
     ]
     lane = 0
     for title, fn, x, y, conn in devices:
@@ -320,14 +293,12 @@ def fig_i2c() -> str:
         s.text(x, y - 8, title, 10, INK, "start", 800)
         for pin, rail in conn.items():
             px, py = pins[pin]
-            yy = 180 + lane * 8
+            yy = 170 + lane * 8
             lane += 1
             wire(s, [(px, py), (px, yy), (railx[rail], yy)], col[rail], 2.4, r=5)
-    s.text(150, 340, "• Every I²C board joins the same four rails: 3.3 V, GND, SDA, SCL.", 10, INK)
-    s.text(150, 356, "• Each answers to its own address, so they share two wires without clashing.", 10, INK)
-    s.text(150, 372, "• ADS1115 ADDR → GND sets 0x48. A0 = gas sensor, A1 = battery voltage.", 10, INK)
-    s.text(150, 388, "• The AHT20 + BMP280 combo board shows as two addresses: 0x38 and 0x77 (or 0x76).", 10, INK)
-    s.text(150, 404, "• Test: python -m hwtest.i2c_scan lists every address found.", 10, INK)
+    s.text(150, 296, "• Both boards join the same four rails: 3.3 V, GND, SDA, SCL (Pi pins 1, 6, 3, 5).", 10, INK)
+    s.text(150, 312, "• Each answers to its own address: MPU6050 0x68, AHT20 0x38, BMP280 0x77 (or 0x76).", 10, INK)
+    s.text(150, 328, "• Test: python -m hwtest.i2c_scan lists every address found.", 10, INK)
     return s.svg()
 
 
@@ -433,63 +404,9 @@ def fig_sonar() -> str:
 
 
 # ======================================================================= encoders
-def fig_encoders() -> str:
-    s = S(FIG_W, 300)
-    used = {29: W["sig4"], 31: W["sig4"]}
-    hdr = gpio_header(s, 600, 30, used, pitch=12, labels="none")
-    for i, (name, pin) in enumerate((("LEFT", 29), ("RIGHT", 31))):
-        x, y = 30 + i * 260, 70
-        p = slot_encoder(s, x, y, 1.3)
-        encoder_disc(s, x + 75, y - 10, 30)
-        s.text(x, y - 40, f"{name} wheel encoder", 10, INK, "start", 800)
-        vx, vy = p["VCC"]
-        gx, gy = p["GND"]
-        wire(s, [(vx, vy), (vx, vy + 40)], W["3v3"], 2.6)
-        tag(s, vx, vy + 54, "3V3", W["3v3"], 8, "middle")
-        wire(s, [(gx, gy), (gx, gy + 60)], W["gnd"], 2.6)
-        tag(s, gx, gy + 74, "GND", W["gnd"], 8, "middle")
-        dx, dy = p["D0"]
-        hx, hy, side = hdr[pin]
-        lane = 560 + i * 12
-        wire(s, [(dx, dy), (dx, 230 + i * 12), (lane, 230 + i * 12), (lane, hy), (hx, hy)], W["sig4"], 2.6, r=6)
-        tag(s, dx + 120, 226 + i * 12 + 30, "", W["sig4"], 1) if False else None
-    tag(s, 330, 278, "left D0 → pin 29 (GPIO5)   ·   right D0 → pin 31 (GPIO6)   ·   A0 not used", W["sig4"], 8.5, "middle")
-    s.text(20, 296, "Power the encoders from 3.3 V so their output is safe for the Pi. The disc must spin freely in the slot.", 9, MUTED)
-    return s.svg()
 
 
 # ======================================================================= gas
-def fig_gas() -> str:
-    s = S(FIG_W, 300)
-    p = mq135(s, 30, 40, 1.4)
-    a = ads1115(s, 420, 60, 1.3)
-    s.text(30, 30, "MQ-135 gas sensor", 10, INK, "start", 800)
-    s.text(420, 50, "ADS1115", 10, INK, "start", 800)
-    vx, vy = p["VCC"]
-    gx, gy = p["GND"]
-    wire(s, [(vx, vy), (vx, vy + 50)], W["5v"], 2.8)
-    tag(s, vx, vy + 64, "5V", W["5v"], 8, "middle")
-    wire(s, [(gx, gy), (gx, gy + 70)], W["gnd"], 2.8)
-    tag(s, gx, gy + 84, "GND", W["gnd"], 8, "middle")
-    ax, ay = p["AO"]
-    dx = 280
-    resistor(s, dx, 120, dx, 170, BANDS["10k"])
-    resistor(s, dx, 170, dx, 220, BANDS["20k"])
-    s.text(dx + 12, 148, "10 kΩ", 8.5, INK, "start", 700)
-    s.text(dx + 12, 198, "20 kΩ", 8.5, INK, "start", 700)
-    s.circle(dx, 170, 3.5, INK)
-    wire(s, [(ax, ay), (ax, ay + 18), (250, ay + 18), (250, 120), (dx, 120)], "#7a7f87", 2.8, r=6)
-    wire(s, [(dx, 220), (dx, 240)], W["gnd"], 2.8)
-    tag(s, dx, 254, "GND", W["gnd"], 8, "middle")
-    a0x, a0y = a["A0"]
-    wire(s, [(dx, 170), (380, 170), (380, a0y + 40), (a0x, a0y + 40), (a0x, a0y)], "#7a7f87", 2.8, r=6)
-    s.text(420, 200, "ADS1115: VDD 3V3 · GND · SDA · SCL to the hub rails,", 9.5, INK)
-    s.text(420, 214, "ADDR → GND (0x48). A1 = battery (power page).", 9.5, INK)
-    s.text(420, 236, "The MQ-135 heater needs 5 V and gets warm:", 9.5, INK)
-    s.text(420, 250, "mount it at the back, away from plastic.", 9.5, INK)
-    s.text(420, 272, "First use: 24-48 h burn-in, then calibrate", 9.5, INK)
-    s.text(420, 286, "(python -m hwtest.test_env --calibrate-mq135).", 9.5, INK)
-    return s.svg()
 
 
 # ======================================================================= audio + camera
@@ -555,11 +472,9 @@ def fig_layout_top() -> str:
             s.text(x + px + pw / 2, y + py + ph / 2 + 13, sub, 7.5, fg, "middle", 500)
 
     part(190, 40, 150, 100, PCB, "Raspberry Pi 4", "on standoffs")
-    part(30, 40, 140, 70, BLUE, "XL4015 5 V", "near the Pi, short wires")
-    part(30, 130, 140, 110, "#b07d2c", "Sensor hub board", "rails + 5 dividers + ADS1115")
+    part(30, 70, 140, 140, "#b07d2c", "Sensor hub board", "rails + 3 echo dividers")
     part(190, 160, 90, 60, BLUE, "MPU6050", "flat, centre")
     part(30, 260, 70, 50, "#6b3fa0", "AHT20", "rear edge")
-    part(115, 260, 75, 50, BLUE, "MQ-135", "rear edge, hot")
     part(280, 262, 80, 40, PCB, "PAM8403")
     s.circle(x + 405, y + 240, 26, "#2b2f35")
     s.text(x + 405, y + 244, "speaker", 8, "#fff", "middle", 700)
@@ -570,7 +485,7 @@ def fig_layout_top() -> str:
         s.add(f'<g transform="rotate({ang} {cx} {cy})"><rect x="{cx - 14}" y="{cy - 28}" width="22" height="56" rx="4" fill="{BLUE}"/>'
               f'<circle cx="{cx + 4}" cy="{cy - 14}" r="9" fill="#c9ced3"/><circle cx="{cx + 4}" cy="{cy + 14}" r="9" fill="#c9ced3"/></g>')
         s.text(cx - 26, cy + 4, lab, 8.5, INK, "end", 800)
-    s.text(x + 20, y + H_ + 22, "Bottom deck: battery holder, L298N, the 4 motors and encoders. Keep AHT20 and MQ-135 away from the Pi CPU.", 9.5, MUTED, "start", 500)
+    s.text(x + 20, y + H_ + 22, "Bottom deck: power bank and L298N; the 4 motors and the motor battery underneath. Keep the AHT20 away from the Pi CPU.", 9.5, MUTED, "start", 500)
     return s.svg()
 
 
@@ -586,17 +501,15 @@ def fig_layout_side() -> str:
     s.rect(100, gy - 24, 450, 8, "#cfe6f5", "#7fa8c4", rx=3)
     s.rect(440, gy - 16, 60, 18, "#f2c230", "#b38a12", rx=3)
     s.rect(200, gy - 18, 150, 20, "#2f7dd1", "#1d4f87", rx=5)
-    s.text(275, gy - 4, "2 x 18650 holder (under deck)", 8, "#fff", "middle", 700)
+    s.text(275, gy - 4, "motor battery (under deck)", 8, "#fff", "middle", 700)
     s.rect(250, gy - 52, 90, 28, "#b8322a", rx=4)
     s.text(295, gy - 34, "L298N", 9, "#fff", "middle", 800)
-    s.rect(400, gy - 40, 40, 16, BLUE, rx=3)
-    s.text(420, gy - 29, "enc", 7, "#fff", "middle", 700)
-    for sx in (110, 375, 530):
+    s.rect(370, gy - 42, 120, 18, "#2b2f36", rx=4)
+    s.text(430, gy - 29, "power bank", 8, "#fff", "middle", 700)
+    for sx in (110, 352, 530):
         s.rect(sx, gy - 104, 8, 80, "#d4b24c", "#9c7f2a", rx=1)
     s.text(122, gy - 64, "35-40 mm standoffs", 8, MUTED, "start", 600)
     s.rect(100, gy - 112, 450, 8, "#cfe6f5", "#7fa8c4", rx=3)
-    s.rect(130, gy - 134, 80, 22, BLUE, rx=4)
-    s.text(170, gy - 119, "XL4015", 8.5, "#fff", "middle", 800)
     s.rect(230, gy - 140, 110, 28, PCB, rx=4)
     s.text(285, gy - 122, "Pi 4", 9, "#fff", "middle", 800)
     s.rect(500, gy - 150, 46, 30, "#202326", rx=12)
@@ -613,17 +526,12 @@ def fig_layout_side() -> str:
 
 
 def fig_motor_mount() -> str:
-    from draw import encoder_disc
     s = S(FIG_W, 245)
     chassis_top(s, 20, 20, 1.0, bare=True)
-    s.text(170, 236, "1. Screw the 4 motors under the bottom deck with the kit's brackets", 9, INK, "middle", 600)
-    x, y = 380, 40
-    tt_motor(s, x + 20, y + 90, 1.1, wheel=False)
-    encoder_disc(s, x + 112, y + 72, 30)
-    slot_encoder(s, x + 160, y + 110, 1.1)
-    s.line(x + 112, y + 72, x + 112, y + 110, "#999", 2, dash="4 3")
-    s.text(x + 150, y + 182, "2. Disc on the motor's inner shaft, spinning", 9, INK, "middle", 600)
-    s.text(x + 150, y + 196, "inside the slot of the encoder module", 9, INK, "middle", 600)
+    s.text(170, 236, "Screw the 4 motors under the bottom deck with the kit's brackets", 9, INK, "middle", 600)
+    tt_motor(s, 420, 110, 1.3, wheel=True)
+    s.text(490, 196, "TT motor + wheel (×4)", 9.5, INK, "middle", 700)
+    s.text(490, 212, "solder a red + black wire to each motor first", 9, MUTED, "middle", 600)
     return s.svg()
 
 
@@ -648,20 +556,18 @@ def fig_motor_pairs() -> str:
 
 
 def fig_full_harness() -> str:
-    s = S(FIG_W, 640)
+    s = S(FIG_W, 620)
     blocks = {
         "pi": (260, 250, 180, 150, PCB, "Raspberry Pi 4"),
         "hub": (20, 250, 180, 150, "#b07d2c", "Hub board"),
-        "buck": (260, 20, 180, 80, BLUE, "XL4015 5.1 V"),
-        "bat": (20, 20, 180, 80, "#c0392b", "Battery 2x18650"),
+        "pbank": (260, 20, 180, 80, "#2b2f36", "Power bank (Pi only)"),
+        "bat": (20, 20, 180, 80, "#c0392b", "Motor battery 2x18650"),
         "l298": (20, 130, 180, 80, "#b8322a", "L298N"),
         "cam": (500, 20, 180, 80, "#202326", "USB webcam + mic"),
-        "son": (500, 250, 180, 70, BLUE, "3x HC-SR04"),
-        "enc": (500, 335, 180, 65, BLUE, "2x encoders"),
-        "i2c": (20, 440, 180, 90, "#6b3fa0", "MPU6050 · AHT20 · ADS1115"),
-        "mq": (260, 440, 180, 90, BLUE, "MQ-135"),
-        "aud": (500, 440, 180, 90, "#555b62", "PAM8403 + speaker"),
-        "mot": (20, 560, 180, 60, "#8d5a3b", "4x TT motors (2 per side)"),
+        "son": (500, 250, 180, 80, BLUE, "3x HC-SR04"),
+        "i2c": (20, 440, 180, 80, "#6b3fa0", "MPU6050 · AHT20"),
+        "aud": (500, 440, 180, 80, "#555b62", "PAM8403 + speaker"),
+        "mot": (260, 540, 180, 60, "#8d5a3b", "4x TT motors (2 per side)"),
     }
     for key, (x, y, w, h, c, t) in blocks.items():
         s.rect(x, y, w, h, c, rx=10)
@@ -675,29 +581,24 @@ def fig_full_harness() -> str:
         s.line(*p1, *p2, col, 3)
         tag(s, (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2 + 4, label, col, 7.5, "middle", fg="#fff" if col not in (W["pwm"], W["scl"]) else INK)
 
-    subs = {"hub": ["rails: 5V · 3V3 · GND · SDA · SCL", "3 echo dividers (1k/2k)", "MQ (10k/20k) · battery (10k/4.7k)"],
-            "pi": ["robot program + server", "pins: see the pin map page"], "buck": ["+ 1000 µF on its input"],
+    subs = {"hub": ["rails: 5V · 3V3 · GND · SDA · SCL", "3 echo dividers (1k/2k)"],
+            "pi": ["robot program + server", "pins: see the pin map page"], "pbank": ["10,000 mAh · 5 V 3 A"],
             "bat": ["7.4 V · switch in the holder"], "l298": ["motor driver"], "cam": ["photos, video, sound"],
-            "son": ["Echo via hub dividers"], "enc": ["3.3 V · D0 out"], "mq": ["5 V heater · AO → divider → A0"],
-            "aud": ["from the Pi's 3.5 mm jack"]}
+            "son": ["Echo via hub dividers"], "i2c": ["3.3 V · I²C"], "aud": ["from the Pi's 3.5 mm jack"]}
     for key, lines in subs.items():
         x, y, w, h = blocks[key][:4]
         for i, t in enumerate(lines):
             s.text(x + w / 2, y + 44 + i * 14, t, 8.5, "#ffffffd0", "middle", 500)
-    link("bat", "buck", W["bat"], "+ / −", 1.0, 0.0, ay=40, by=40)
-    link("buck", "pi", "#555b62", "USB-C 5.1V", 0.5, 0.5)
+    link("pbank", "pi", "#555b62", "USB-C 5 V", 0.5, 0.5)
     link("bat", "l298", W["bat"], "+ / −", 0.5, 0.5)
-    wire(s, [(20, 190), (10, 190), (10, 590), (20, 590)], W["mot"], 3, r=6)
-    tag(s, 110, 546, "OUT1/2 · OUT3/4 → motors", W["mot"], 7.5, "middle")
-    link("pi", "l298", W["sig1"], "IN1-4 · ENA 33 · ENB 35", 0.0, 1.0, ay=30, by=50)
+    link("l298", "mot", W["mot"], "OUT1/2 · OUT3/4", 0.5, 0.0, ay=80, by=30)
+    link("pi", "l298", W["sig1"], "IN1-4 · ENA 33 · ENB 35 · GND 9", 0.0, 1.0, ay=30, by=50)
     link("pi", "hub", W["3v3"], "pins 1,2,3,5,6", 0.0, 1.0, ay=75, by=75)
     link("pi", "cam", "#555b62", "USB", 0.9, 0.5, ay=0, by=80)
-    link("pi", "son", W["sig3"], "Trig 32/18/38", 1.0, 0.0, ay=40, by=25)
-    link("pi", "enc", W["sig4"], "pins 29 / 31", 1.0, 0.0, ay=120, by=30)
+    link("pi", "son", W["sig3"], "Trig 32/18/38 · Echo 36/22/40", 1.0, 0.0, ay=60, by=40)
     link("hub", "i2c", W["sda"], "3V3 · GND · SDA · SCL", 0.5, 0.5)
-    link("hub", "mq", W["5v"], "5V · GND · divider", 0.9, 0.5)
     link("pi", "aud", W["audio"], "3.5 mm jack", 0.9, 0.3)
-    s.text(20, 636, "Echo lines: sonar Echo → hub divider → Pi pins 36 / 22 / 40.  Battery + → 10k/4.7k divider → ADS1115 A1.", 9, INK, "start", 600)
+    s.text(20, 614, "Two separate batteries; L298N GND → Pi pin 9 joins their grounds. Sonar Echo → hub divider → Pi.", 9, INK, "start", 600)
     return s.svg()
 
 
@@ -733,8 +634,7 @@ def fig_cover_robot() -> str:
     for sx in (110, 450):
         s.rect(sx, gy - 140, 8, 100, "#d4b24c", "#9c7f2a", rx=1)
     s.add(f'<path d="M100 {gy - 150} L460 {gy - 150} L500 {gy - 120} L60 {gy - 120} Z" fill="url(#deck)" stroke="#6f9cbc" stroke-width="2"/>')
-    s.rect(110, gy - 176, 80, 28, BLUE, BLUE_D, rx=5)
-    s.circle(140, gy - 162, 8, "#2a2e31")
+    s.rect(118, gy - 58, 90, 17, "#2b2f36", rx=4)
     s.rect(335, gy - 188, 120, 40, PCB, PCB_D, rx=5)
     s.text(395, gy - 163, "Raspberry Pi 4", 9.5, "#fff", "middle", 700)
     for wx in (72, 488):

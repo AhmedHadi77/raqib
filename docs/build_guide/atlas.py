@@ -3,7 +3,7 @@
     python docs/build_guide/atlas.py
 
   A. Every part, drawn large in colour with its name, what it looks like, its size and where each pin goes
-  B. The boards: Raspberry Pi 4 ports, the full 40-pin map, close-ups of the L298N, XL4015, ADS1115, HC-SR04, hub
+  B. The boards: Raspberry Pi 4 ports, the full 40-pin map, close-ups of the L298N, HC-SR04, MPU6050, AHT20, hub
   C. The robot's structure: exploded view, side / top / bottom / front views
   D. How everything connects: system map, one diagram per group, the full harness and a wire-by-wire table
 
@@ -24,7 +24,7 @@ sys.path.insert(0, str(HERE))
 import diagrams as D  # noqa: E402
 from draw import (BANDS, BLUE, BLUE_D, GOLD, INK, METAL, METAL_D, MUTED, PCB, PCB_D, PI_PINS, S, SILK, W, ads1115,  # noqa: E402
                   aht20, battery_2s, buck_xl4015, cell_18650, encoder_disc, gpio_header, gy521, hcsr04, l298n,
-                  mq135, pam8403, pi4, resistor, slot_encoder, speaker, tag, tt_motor, webcam, wire)
+                  mq135, pam8403, pi4, power_bank, resistor, slot_encoder, speaker, tag, tt_motor, webcam, wire)
 
 OUT_HTML = HERE / "atlas.html"
 OUT_PDF = HERE.parent / "Raqib_Parts_and_Wiring_Atlas.pdf"
@@ -95,14 +95,12 @@ def big_capacitor(s, x, y, k=1.0):
 
 def pic(key: str) -> str:
     """Large colour drawing of one part (scaled by CSS to the card)."""
-    if key in ("pi", "sd", "bat2", "l298n", "hc", "enc", "imu", "mq", "ads", "pam", "spk", "res", "wires", "hub",
-               "standoff", "tools", "aht", "webcam", "buck", "chassis"):
+    if key in ("pi", "sd", "bat2", "l298n", "hc", "enc", "imu", "mq", "ads", "pam", "spk", "res", "res2", "wires", "hub",
+               "standoff", "tools", "aht", "webcam", "buck", "chassis", "pbank"):
         return D.fig_component(key)
     if key == "motor":
         s = S(250, 150)
-        tt_motor(s, 40, 90, 1.25)
-        encoder_disc(s, 205, 56, 30)
-        s.text(205, 104, "encoder disc", 8, MUTED, "middle", 600)
+        tt_motor(s, 60, 90, 1.25)
         return s.svg("comp")
     if key == "cap":
         s = S(150, 140)
@@ -129,56 +127,44 @@ def pic(key: str) -> str:
 PARTS = [
     ("pi", "brain", "Raspberry Pi 4 Model B (2 GB)", "The robot's computer. Runs the robot program, its own server for the phone app, and talks to the AI.",
      "Green board the size of a credit card. Silver USB and Ethernet ports on one short edge, 40 gold pins along one long edge.",
-     "85 × 56 mm", [("40-pin header", "all sensors and the L298N (see the pin map)", "sig"), ("USB-C", "5.1 V from the XL4015 (cut USB cable)", "5v"),
+     "85 × 56 mm", [("40-pin header", "all sensors and the L298N (see the pin map)", "sig"), ("USB-C", "5 V from the power bank (its own cable)", "5v"),
                     ("USB 3 (blue)", "USB webcam", "usb"), ("3.5 mm jack", "PAM8403 amplifier", "audio")],
      "The microSD card slot is underneath, on the short edge without ports."),
     ("sd", "brain", "microSD card 16 GB", "Holds Raspberry Pi OS and all the robot software.",
      "Fingernail-size card; buy 'A1' or 'Class 10'.", "15 × 11 mm", [("card", "slot under the Pi", "sig")],
      "Write it with Raspberry Pi Imager on your PC."),
-    ("cells", "power", "18650 Li-ion cells (×2)", "Store the energy for the whole robot.",
+    ("pbank", "power", "USB power bank 10,000 mAh (5 V 3 A)", "Powers the Raspberry Pi, and nothing else: motor starts can never restart it.",
+     "Flat black or white box with 4 small LEDs, a button, and USB-A / USB-C ports.", "about 140 × 68 × 16 mm",
+     [("USB-C (or USB-A) out", "its own short cable → Pi USB-C power", "usb"), ("LEDs", "how full it is (no wires)", "sig")],
+     "It must say 5 V 3 A (15 W) or more. Charge it like a phone."),
+    ("cells", "power", "18650 Li-ion cells (×2)", "Store the energy for the motors.",
      "Cylinder like a fat AA battery, usually blue, green or purple wrapping, flat or button top.",
      "18 mm × 65 mm each, 3.7 V", [("+ (button end)", "+ mark in the holder", "bat"), ("− (flat end)", "spring in the holder", "gnd")],
      "Real cells are 2500-3500 mAh. '9900 mAh' cells are fake and unsafe."),
-    ("bat2", "power", "2 × 18650 holder with switch", "Joins the two cells into a 7.4 V pack; its switch turns the robot on and off.",
+    ("bat2", "power", "2 × 18650 holder with switch", "Joins the two cells into a 7.4 V motor pack; its switch turns the motors on and off.",
      "Black plastic box with two slots, a small slide switch and a red + black lead.", "about 77 × 41 mm",
-     [("red lead +", "XL4015 IN+, L298N +12V, battery divider", "bat"), ("black lead −", "XL4015 IN−, L298N GND", "gnd")],
-     "Full = 8.4 V, empty ≈ 6.6 V."),
-    ("buck", "power", "XL4015 step-down converter", "Turns the battery's 7-8 V into a steady 5.1 V for the Pi.",
-     "Blue board with a big black coil, a square XL4015 chip and a small blue box with a brass screw (trimmer).",
-     "about 54 × 23 mm", [("IN+ / IN−", "battery + / − (1000 µF across them)", "bat"), ("OUT+ / OUT−", "red / black of the cut USB cable → Pi", "5v")],
-     "Turn the brass screw until OUT reads 5.1 V BEFORE the Pi is plugged in."),
-    ("cap", "power", "1000 µF capacitor", "A small energy tank: stops motor starts from dipping the Pi's power.",
-     "Blue or black cylinder with a white stripe and '−' marks on one side.", "about 10 × 20 mm",
-     [("long leg (+)", "XL4015 IN+", "bat"), ("short leg, stripe (−)", "XL4015 IN−", "gnd")],
-     "Polarity matters: the stripe side goes to minus."),
-    ("usbc", "power", "USB-A → USB-C cable (A end cut off)", "Carries the 5.1 V from the XL4015 into the Pi's power socket.",
-     "Any 3 A phone cable. Inside: red, black, green and white wires.", "20-30 cm",
-     [("red", "XL4015 OUT+", "5v"), ("black", "XL4015 OUT−", "gnd"), ("USB-C plug", "Pi USB-C power", "usb")],
-     "Green and white are data wires: cut them short and tape them."),
+     [("red lead +", "L298N +12V", "bat"), ("black lead −", "L298N GND (which also goes to Pi pin 9)", "gnd")],
+     "Full = 8.4 V, empty ≈ 6.6 V. Never connect its + to the Pi."),
     ("chassis", "moving", "4WD chassis kit", "The robot's body: two acrylic decks, four motors with wheels, brass standoffs.",
      "Two clear or coloured acrylic plates with many holes, 4 yellow TT motors, 4 rubber wheels, brass posts and screws.",
      "about 25 × 15 cm", [("4 motors", "under the bottom deck, 2 per side", "mot"), ("standoffs", "bottom deck → top deck", "mot")],
      "Four driven wheels steer like a tank: left pair and right pair at different speeds."),
-    ("motor", "moving", "TT gear motors (×4) + encoder discs", "Each turns one wheel. The 20-slot disc on the two front motors lets the robot count how far it went.",
+    ("motor", "moving", "TT gear motors (×4)", "Each turns one wheel. The robot knows how far it went from motor power × time (calibrated once).",
      "Yellow plastic gearbox with a small metal motor; shaft out of both sides.", "70 × 22 × 18 mm",
      [("left pair red / black", "L298N OUT1 / OUT2 (front + rear joined)", "mot"), ("right pair red / black", "L298N OUT3 / OUT4", "mot")],
      "Join the two motors of a side red-to-red, black-to-black; a side that runs backwards: swap its two wires."),
-    ("l298n", "moving", "L298N motor driver", "Switches battery power to the motors forwards or backwards, at the speed the Pi asks.",
+    ("l298n", "moving", "L298N motor driver", "Switches motor-battery power to the motors forwards or backwards, at the speed the Pi asks.",
      "Red board with a big black finned heatsink, blue screw terminals on three sides, 6 pins on the front.",
-     "43 × 43 mm", [("+12V / GND", "battery + / −", "bat"), ("GND", "also to Pi pin 9", "gnd"), ("OUT1/OUT2", "left motor pair", "mot"),
+     "43 × 43 mm", [("+12V / GND", "motor battery + / −", "bat"), ("GND", "also to Pi pin 9: COMMON GROUND (essential)", "gnd"), ("OUT1/OUT2", "left motor pair", "mot"),
                     ("OUT3/OUT4", "right motor", "mot"), ("ENA / ENB", "Pi pins 33 / 35 (speed)", "pwm"),
                     ("IN1-IN4", "Pi pins 11, 13, 15, 16 (direction)", "sig")],
      "Pull off the ENA and ENB jumpers. Keep the 5V-EN jumper."),
-    ("enc", "moving", "Speed encoder module (×2)", "Gives one pulse each time a slot of the disc passes: the wheel's odometer.",
-     "Small blue board with a black U-shaped slot sensor and an LM393 chip.", "32 × 14 mm",
-     [("VCC", "hub 3V3", "3v3"), ("GND", "hub GND", "gnd"), ("D0", "Pi pin 29 (left) / 31 (right)", "sig"), ("A0", "not used", "ana")],
-     "The disc must spin inside the slot without touching it."),
     ("hc", "sensing", "HC-SR04 ultrasonic sensor (×3)", "Measures distance with sound (2 cm-4 m): stops the robot before obstacles.",
      "Blue board with two silver 'eyes' (speaker and microphone), 4 pins at the bottom.", "45 × 20 mm",
      [("VCC", "hub 5V", "5v"), ("Trig", "Pi pin 32 / 18 / 38 (left / centre / right)", "sig"),
       ("Echo", "1k/2k divider → Pi pin 36 / 22 / 40", "sig"), ("Gnd", "hub GND", "gnd")],
-     "Echo is 5 V: never connect it to the Pi without the divider."),
-    ("imu", "sensing", "MPU6050 motion sensor (GY-521)", "Gyroscope + accelerometer: knows how far the robot has turned.",
+     "Echo is 5 V: never connect it to the Pi without the divider. Buy one spare."),
+    ("imu", "sensing", "MPU6050 motion sensor (GY-521)", "Gyroscope + accelerometer: knows how far the robot has turned and keeps it straight.",
      "Tiny blue board with a square black chip and 8 pins in a row.", "21 × 16 mm",
      [("VCC", "hub 3V3", "3v3"), ("GND", "hub GND", "gnd"), ("SCL", "hub SCL (Pi pin 5)", "scl"), ("SDA", "hub SDA (Pi pin 3)", "sda")],
      "Mount it flat near the middle; I²C address 0x68."),
@@ -186,15 +172,6 @@ PARTS = [
      "Small purple or blue board with a white square chip (AHT20) and a tiny silver one (BMP280).", "about 15 × 12 mm",
      [("VIN", "hub 3V3", "3v3"), ("GND", "hub GND", "gnd"), ("SCL", "hub SCL", "scl"), ("SDA", "hub SDA", "sda")],
      "Two I²C addresses: 0x38 and 0x77 (or 0x76). Keep it away from warm parts."),
-    ("mq", "sensing", "MQ-135 gas sensor", "Heated sensor whose voltage rises with CO₂ and gases: the air-quality check.",
-     "Blue board with a silver mesh 'can' on top, a red LED and 4 pins.", "32 × 22 mm",
-     [("VCC", "hub 5V (heater)", "5v"), ("GND", "hub GND", "gnd"), ("AO", "10k/20k divider → ADS1115 A0", "ana"), ("DO", "not used", "ana")],
-     "It gets hot. First use: leave it on 24-48 h."),
-    ("ads", "sensing", "ADS1115 16-bit ADC", "Turns voltages into numbers for the Pi: the gas sensor and the battery level.",
-     "Small purple or blue board with 10 pins along one edge.", "28 × 17 mm",
-     [("VDD", "hub 3V3", "3v3"), ("GND", "hub GND", "gnd"), ("SCL / SDA", "hub SCL / SDA", "sda"), ("ADDR", "GND (address 0x48)", "gnd"),
-      ("A0", "MQ-135 divider", "ana"), ("A1", "battery divider (10k/4.7k)", "bat")],
-     "Power it from 3.3 V so it is safe on the Pi's I²C bus."),
     ("webcam", "media", "USB webcam with microphone", "The robot's eyes and ears: photos, live video and sound.",
      "Small black camera on a clip, one USB cable, tiny mic holes on the front.", "about 70-90 mm wide",
      [("USB plug", "Pi USB 3 port (blue)", "usb")],
@@ -209,11 +186,11 @@ PARTS = [
      "Ordinary headphone-plug cable.", "20-30 cm",
      [("plug", "Pi 3.5 mm audio jack", "audio"), ("tip wire", "PAM8403 L", "audio"), ("shield", "PAM8403 G", "gnd")],
      "If you are unsure which wire is the tip, test with the multimeter (continuity)."),
-    ("res", "build", "Resistors", "Voltage dividers: protect the Pi from 5 V and measure the battery.",
+    ("res2", "build", "Resistors (1 kΩ ×3, 2 kΩ ×3)", "Three voltage dividers: they protect the Pi from the sonars' 5 V Echo.",
      "Small beige or blue tubes with coloured bands.", "about 6 mm long",
-     [("1 kΩ ×3 + 2 kΩ ×3", "the three Echo dividers", "sig"), ("10 kΩ + 20 kΩ", "MQ-135 divider", "ana"), ("10 kΩ + 4.7 kΩ", "battery divider", "bat")],
+     [("1 kΩ (top)", "sonar Echo → middle point", "sig"), ("2 kΩ (bottom)", "middle point → GND", "gnd")],
      "No 2 kΩ? Two 1 kΩ in series. Read the colour bands (picture)."),
-    ("hub", "build", "Hub board (you make it)", "One place where 5 V, 3.3 V, GND, SDA and SCL meet, plus the 5 dividers.",
+    ("hub", "build", "Hub board (you make it)", "One place where 5 V, 3.3 V, GND, SDA and SCL meet, plus the 3 sonar dividers.",
      "Brown perfboard with five soldered rails and header strips.", "about 7 × 9 cm",
      [("5V / 3V3 / GND", "Pi pins 2 / 1 / 6", "5v"), ("SDA / SCL", "Pi pins 3 / 5", "sda")], "Label each rail with a marker."),
     ("wires", "build", "Jumper wires", "Plug-in connections: no soldering for most parts.",
@@ -241,7 +218,7 @@ def fig_pi_labelled() -> str:
     cols = {"g": "#1e9e55", "p": "#c0392b", "u": "#2d6be0", "a": "#7a7f87", "c": "#8a55e8"}
     callout(s, pins[1][0], pins[1][1], 60, 40, "pin 1 (square pad)", "#b4530f", "start")
     callout(s, pins[40][0] - 2, pins[40][1] - 4, 440, 30, "40-pin GPIO header: sensors + motor driver", cols["g"], "start")
-    callout(s, x0 + 11.5 * k, y0 + 56 * k, 60, 440, "USB-C power: 5.1 V from the XL4015", cols["p"], "start")
+    callout(s, x0 + 11.5 * k, y0 + 56 * k, 60, 440, "USB-C power: from the power bank", cols["p"], "start")
     callout(s, x0 + 30 * k, y0 + 56 * k, 250, 455, "2 × micro-HDMI (screen, not needed)", "#555b62", "start")
     callout(s, x0 + 54 * k, y0 + 54 * k, 420, 440, "3.5 mm audio jack → PAM8403", cols["a"], "start")
     callout(s, x0 + 45.5 * k, y0 + 45 * k, 440, 410, "CAMERA port (not used: webcam on USB)", "#8a7a52", "start")
@@ -259,8 +236,7 @@ def fig_pinout_full() -> str:
     """Every one of the 40 pins: name, type colour and what the robot uses it for."""
     use = {1: "→ hub 3V3 rail", 2: "→ hub 5V rail", 3: "→ hub SDA rail (I²C)", 5: "→ hub SCL rail (I²C)", 6: "→ hub GND rail",
            9: "→ L298N GND (signal ground)", 11: "→ L298N IN1 (left)", 13: "→ L298N IN2 (left)", 15: "→ L298N IN3 (right)",
-           16: "→ L298N IN4 (right)", 18: "← sonar CENTRE Trig", 22: "← sonar CENTRE Echo (divider)", 29: "← left encoder D0",
-           31: "← right encoder D0", 32: "→ sonar LEFT Trig", 33: "→ L298N ENA (left speed)", 35: "→ L298N ENB (right speed)",
+           16: "→ L298N IN4 (right)", 18: "← sonar CENTRE Trig", 22: "← sonar CENTRE Echo (divider)", 32: "→ sonar LEFT Trig", 33: "→ L298N ENA (left speed)", 35: "→ L298N ENB (right speed)",
            36: "← sonar LEFT Echo (divider)", 38: "→ sonar RIGHT Trig", 40: "← sonar RIGHT Echo (divider)"}
     tcol = {"p33": W["3v3"], "p5": W["5v"], "gnd": W["gnd"], "sda": W["sda"], "scl": W["scl"], "gpio": "#9aa3ab", "id": "#c7ccd1"}
     used = {}
@@ -319,7 +295,7 @@ def fig_closeup_l298n() -> str:
         px, py = l2[o]
         wire(s, [(px, py), (460, py)], W["mot"], 2)
         tag(s, 464, py + 4, t, W["mot"], 8.5, "start")
-    fan(s, [(*l2["+12V"], "+12V ← battery + (red)", W["bat"]), (*l2["GND"], "GND ← battery − and Pi pin 9", W["gnd"]),
+    fan(s, [(*l2["+12V"], "+12V ← motor battery + (red)", W["bat"]), (*l2["GND"], "GND ← motor battery − and Pi pin 9", W["gnd"]),
             (*l2["+5V"], "+5V: leave empty", "#9aa3ab")], 205, 270, 22, side="left")
     fan(s, [(*l2["ENA"], "ENA ← Pi pin 33 (left speed)", W["pwm"]), (*l2["IN1"], "IN1 ← Pi pin 11", W["sig1"]),
             (*l2["IN2"], "IN2 ← Pi pin 13", W["sig1"]), (*l2["IN3"], "IN3 ← Pi pin 15", W["sig1"]),
@@ -330,27 +306,26 @@ def fig_closeup_l298n() -> str:
 
 
 def fig_closeup_small() -> str:
-    s = S(700, 570)
-    s.text(20, 22, "XL4015 5 V converter", 12, INK, "start", 800)
-    bk = buck_xl4015(s, 30, 40, 1.2)
-    wire(s, [bk["IN+"], (14, bk["IN+"][1]), (14, 160)], W["bat"], 2)
-    wire(s, [bk["IN-"], (22, bk["IN-"][1]), (22, 150)], W["gnd"], 2)
-    tag(s, 10, 172, "IN+ / IN− ← battery (+ 1000 µF)", W["bat"], 8.5, "start")
-    wire(s, [bk["OUT+"], (212, bk["OUT+"][1]), (212, 150)], W["5v"], 2)
-    wire(s, [bk["OUT-"], (204, bk["OUT-"][1]), (204, 160)], W["gnd"], 2)
-    tag(s, 220, 194, "OUT+ / OUT− → cut USB cable → Pi", W["5v"], 8.5, "end")
-    callout(s, 30 + 73 * 1.2, 40 + 47 * 1.2, 250, 60, "brass screw: set 5.1 V", "#2a63b8", "start")
-    s.text(400, 22, "HC-SR04 ultrasonic sensor", 12, INK, "start", 800)
-    h = hcsr04(s, 420, 40, 1.5)
+    s = S(700, 505)
+    s.text(20, 22, "HC-SR04 ultrasonic sensor", 12, INK, "start", 800)
+    h = hcsr04(s, 40, 40, 1.5)
     fan(s, [(*h["VCC"], "VCC ← hub 5V", W["5v"]), (*h["Trig"], "Trig ← Pi pin 32 / 18 / 38", W["sig1"]),
-            (*h["Echo"], "Echo → 1k/2k divider → Pi", W["sig3"]), (*h["Gnd"], "Gnd ← hub GND", W["gnd"])], 460, 150, 20, side="left")
-    s.text(20, 262, "ADS1115 analog-to-digital converter", 12, INK, "start", 800)
-    a = ads1115(s, 40, 280, 1.6)
-    names = [("VDD", "VDD ← hub 3V3", W["3v3"]), ("GND", "GND ← hub GND", W["gnd"]), ("SCL", "SCL ← hub SCL", W["scl"]),
-             ("SDA", "SDA ← hub SDA", W["sda"]), ("ADDR", "ADDR → GND (address 0x48)", W["gnd"]),
-             ("ALRT", "ALRT: not used", "#9aa3ab"), ("A0", "A0 ← MQ-135 divider (10k/20k)", "#7a7f87"),
-             ("A1", "A1 ← battery divider (10k/4.7k)", W["bat"])]
-    fan(s, [(*a[p], t, c) for p, t, c in names], 300, 428, 18)
+            (*h["Echo"], "Echo → 1k/2k divider → Pi 36 / 22 / 40", W["sig3"]), (*h["Gnd"], "Gnd ← hub GND", W["gnd"])], 270, 150, 20)
+    s.text(400, 22, "USB power bank → Raspberry Pi", 12, INK, "start", 800)
+    pb = power_bank(s, 420, 50, 1.2)
+    ux, uy = pb["usbc"]
+    wire(s, [(ux, uy), (ux + 30, uy), (ux + 30, 175)], "#555b62", 4)
+    tag(s, ux + 34, 190, "USB-C cable → Pi USB-C power", "#555b62", 8.5, "end")
+    s.text(420, 215, "5 V 3 A output · the Pi only · LEDs show the charge", 8.5, MUTED, "start", 600)
+    s.text(20, 262, "MPU6050 (GY-521)", 12, INK, "start", 800)
+    m = gy521(s, 40, 280, 1.4)
+    fan(s, [(*m["VCC"], "VCC ← hub 3V3", W["3v3"]), (*m["GND"], "GND ← hub GND", W["gnd"]),
+            (*m["SCL"], "SCL ← hub SCL", W["scl"]), (*m["SDA"], "SDA ← hub SDA", W["sda"])], 240, 420, 14)
+    s.text(400, 262, "AHT20 + BMP280", 12, INK, "start", 800)
+    e = aht20(s, 430, 280, 1.5)
+    fan(s, [(*e["VIN"], "VIN ← hub 3V3", W["3v3"]), (*e["GND"], "GND ← hub GND", W["gnd"]),
+            (*e["SCL"], "SCL ← hub SCL", W["scl"]), (*e["SDA"], "SDA ← hub SDA", W["sda"])], 600, 420, 14)
+    s.text(20, 498, "MPU6050 = I²C address 0x68 · AHT20 = 0x38, BMP280 = 0x77 (or 0x76). The other GY-521 pins are not used.", 9, MUTED, "start", 600)
     return s.svg()
 
 
@@ -394,11 +369,9 @@ def fig_exploded() -> str:
     y3 = 340
     _iso_deck(s, X, y3, Wd, Dp, "#d9ecf8", "#7fa8c4", "3 · top deck")
     _block(s, X + 30, y3 - 52, 110, 34, PCB, "Raspberry Pi 4")
-    _block(s, X + 160, y3 - 46, 70, 22, BLUE, "XL4015")
-    _block(s, X + 250, y3 - 58, 110, 38, "#b07d2c", "hub board + ADS1115")
+    _block(s, X + 250, y3 - 58, 110, 38, "#b07d2c", "hub board")
     _block(s, X + 70, y3 - 14, 56, 18, BLUE, "MPU6050")
     _block(s, X + 140, y3 - 14, 46, 18, "#6b3fa0", "AHT20")
-    _block(s, X + 200, y3 - 14, 50, 18, BLUE, "MQ-135")
     _block(s, X + 262, y3 - 14, 56, 18, PCB, "PAM8403")
     s.circle(X + 350, y3 - 92, 16, "#2b2f35")
     s.text(X + 350, y3 - 66, "speaker", 8, INK, "middle", 700)
@@ -410,14 +383,13 @@ def fig_exploded() -> str:
     s.text(X + Wd + 72, y3 + 84, "35-40 mm", 9.5, MUTED, "start", 700)
     # layer 2: bottom deck
     _iso_deck(s, X, y2 + 40, Wd, Dp, "#d9ecf8", "#7fa8c4", "2 · bottom deck")
-    _block(s, X + 140, y2 - 18, 100, 34, "#b8322a", "L298N")
-    _block(s, X + 30, y2, 50, 16, BLUE, "enc L")
-    _block(s, X + 300, y2, 50, 16, BLUE, "enc R")
     # 4 motors + 4 wheels (rear pair drawn behind, up and to the right)
     for wx in (X - 30 + 82, X + Wd + 10 + 82):
         s.add(f'<ellipse cx="{wx}" cy="{y2 + 70 - 66}" rx="20" ry="31" fill="#15181b"/>')
     _block(s, X + 6 + 82, y2 + 54 - 66, 64, 20, "#d9ae22", "rear L", fg="#5c4500")
     _block(s, X + Wd - 76 + 82, y2 + 54 - 66, 64, 20, "#d9ae22", "rear R", fg="#5c4500")
+    _block(s, X + 165, y2 - 16, 128, 24, "#2b2f36", "power bank (Pi)")
+    _block(s, X + 302, y2 - 20, 74, 32, "#b8322a", "L298N")
     for wx in (X - 30, X + Wd + 10):
         s.add(f'<ellipse cx="{wx}" cy="{y2 + 70}" rx="22" ry="34" fill="#202326"/>')
         s.add(f'<ellipse cx="{wx}" cy="{y2 + 70}" rx="9" ry="14" fill="#f2c230"/>')
@@ -427,8 +399,8 @@ def fig_exploded() -> str:
     # layer 1: battery
     y1 = 680
     s.text(24, y1 - 14, "1 · underneath", 10, INK, "start", 800)
-    _block(s, X + 120, y1 - 32, 150, 30, "#2f7dd1", "2 × 18650 holder + switch")
-    s.text(40, 712, "Heavy parts low (battery, L298N, motors); warm parts (Pi, XL4015, MQ-135) away from the AHT20; sensors at the front.",
+    _block(s, X + 120, y1 - 32, 150, 30, "#2f7dd1", "2 × 18650 motor battery + switch")
+    s.text(40, 712, "Heavy parts low (batteries, L298N, motors); the warm Pi away from the AHT20; sensors at the front.",
            9, MUTED, "start", 600)
     return s.svg()
 
@@ -452,13 +424,12 @@ def fig_layout_bottom() -> str:
     part(360, H_ - 52, 110, 34, "#f2c230", "front motor R", "under the deck", fg="#5c4500")
     part(60, 18, 110, 34, "#f2c230", "rear motor L", "under the deck", fg="#5c4500")
     part(60, H_ - 52, 110, 34, "#f2c230", "rear motor R", "under the deck", fg="#5c4500")
-    part(375, 62, 90, 34, BLUE, "encoder L", "disc in the slot")
-    part(375, H_ - 96, 90, 34, BLUE, "encoder R")
-    part(250, 100, 100, 100, "#b8322a", "L298N", "heatsink up")
-    part(100, 80, 130, 140, "#2f7dd1", "battery holder", "underneath; switch reachable")
+    part(330, 100, 100, 100, "#b8322a", "L298N", "heatsink up")
+    part(90, 66, 200, 64, "#2b2f36", "USB power bank", "on top of the deck: the Pi's battery")
+    part(110, 150, 160, 80, "#2f7dd1", "motor battery holder", "underneath; switch reachable")
     for sx, sy in ((x + 26, y + 26), (x + W_ - 26, y + 26), (x + 26, y + H_ - 26), (x + W_ - 26, y + H_ - 26)):
         s.circle(sx, sy, 7, "#d4b24c", "#9c7f2a", 1.5)
-    s.text(x + W_ / 2, y + H_ + 34, "Gold dots = standoffs to the top deck. Motor and battery wires go up through the deck holes.", 9.5, MUTED, "middle", 500)
+    s.text(x + W_ / 2, y + H_ + 34, "Gold dots = standoffs to the top deck. The USB-C cable, motor and battery wires go up through the deck holes.", 9.5, MUTED, "middle", 500)
     return s.svg()
 
 
@@ -472,7 +443,7 @@ def fig_front() -> str:
         s.rect(wx - 8, gy - 44, 16, 22, "#f2c230", rx=3)
     s.rect(180, gy - 50, 340, 8, "#cfe6f5", "#7fa8c4", rx=3)
     s.rect(300, gy - 42, 100, 24, "#2f7dd1", rx=4)
-    s.text(350, gy - 26, "battery", 8, "#fff", "middle", 700)
+    s.text(350, gy - 26, "motor battery", 8, "#fff", "middle", 700)
     for sx in (200, 500):
         s.rect(sx, gy - 140, 8, 90, "#d4b24c", "#9c7f2a", rx=1)
     s.rect(180, gy - 148, 340, 8, "#cfe6f5", "#7fa8c4", rx=3)
@@ -506,7 +477,7 @@ def wire_rows() -> list[tuple]:
                 to = ext[sp["ext"]]
                 col = {"bat+": (W["bat"], "red"), "bat-": (W["gnd"], "black"), "usbc": ("#555b62", "USB cable"),
                        "usb": ("#555b62", "USB cable"), "jack": (W["audio"], "audio cable"), "out12": (W["mot"], "motor wires"),
-                       "out34": (W["mot"], "motor wires"), "adsa0": ("#7a7f87", "via divider"), "adsa1": (W["bat"], "via divider")}.get(sp["ext"], ("#999", ""))
+                       "out34": (W["mot"], "motor wires")}.get(sp["ext"], ("#999", ""))
             elif "cls" in sp:
                 pins = [str(n) for n, v in WS.HEADER.items() if v[1] == sp["cls"]]
                 to = {"p5": "5 V (hub 5V rail / Pi pin 2 or 4)", "p33": "3.3 V (hub 3V3 rail / Pi pin 1 or 17)",
@@ -605,19 +576,19 @@ def build_html() -> str:
         (W["bat"], "battery +"), (W["mot"], "motor"), (W["pwm"], "PWM speed"), (W["sig1"], "signal"), (W["audio"], "audio")))
     H = []
     coll = "".join(f"<div>{pic(k)}<span>{escape(n.split(' (')[0])}</span></div>" for k, n in (
-        ("pi", "Raspberry Pi 4"), ("hc", "HC-SR04"), ("imu", "MPU6050"), ("aht", "AHT20 + BMP280"), ("mq", "MQ-135"), ("ads", "ADS1115"),
-        ("l298n", "L298N"), ("buck", "XL4015"), ("webcam", "USB webcam"), ("pam", "PAM8403"), ("enc", "Encoder"), ("motor", "TT motor")))
+        ("pi", "Raspberry Pi 4"), ("hc", "HC-SR04"), ("imu", "MPU6050"), ("aht", "AHT20 + BMP280"), ("pbank", "Power bank"), ("bat2", "Motor battery"),
+        ("l298n", "L298N"), ("chassis", "4WD chassis"), ("webcam", "USB webcam"), ("pam", "PAM8403"), ("spk", "Speaker"), ("motor", "TT motor")))
     H.append(f"""<section class="cover2">
-<div class="kicker" style="letter-spacing:.18em;font-size:9pt;font-weight:700;color:#9cc7ff">RAQIB · AI INSPECTION ROBOT · BUDGET BUILD</div>
+<div class="kicker" style="letter-spacing:.18em;font-size:9pt;font-weight:700;color:#9cc7ff">RAQIB · AI INSPECTION ROBOT · RELIABLE BUDGET BUILD</div>
 <h1>Parts &amp; Wiring Atlas</h1>
 <p class="sub">Every sensor and board in colour with its name and real size, the Raspberry Pi pin by pin, the robot's structure layer by
 layer, and how each part is connected.</p>
 <div class="collage">{coll}</div>
 <div class="covermeta"><div><b>Ahmed Mahram Saeed Saeed Hadi</b><br>Final-year IoT project · UNISIRAJ</div>
-<div style="text-align:right">Atlas 1.0 · October 2026<br>Matches the Raqib software 2.4 and the build guide</div></div></section>""")
+<div style="text-align:right">Atlas 1.1 · October 2026<br>Matches the Raqib software 2.5 and the build guide</div></div></section>""")
     H.append("""<section class="page toc"><h2>Inside this atlas</h2><ol class="tocl">
-<li><b>Every part</b> - 23 parts in six colour groups, each with a big picture, its name, how to recognise it and where its pins go</li>
-<li><b>The boards</b> - the Raspberry Pi 4 and its ports, all 40 pins, and close-ups of the L298N, XL4015, ADS1115, HC-SR04 and the hub board</li>
+<li><b>Every part</b> - """ + str(len(PARTS)) + """ parts in six colour groups, each with a big picture, its name, how to recognise it and where its pins go</li>
+<li><b>The boards</b> - the Raspberry Pi 4 and its ports, all 40 pins, and close-ups of the L298N, HC-SR04, power bank, MPU6050, AHT20 and the hub board</li>
 <li><b>The robot's structure</b> - exploded view, side, top, bottom and front views</li>
 <li><b>How everything connects</b> - the system map, one wiring diagram per group, the complete harness and a wire-by-wire table</li>
 </ol>
@@ -635,8 +606,8 @@ Use the same colours for your real wires where you can: mistakes become easy to 
         for p in items:
             n += 1
             cards.append(part_card(n, p))
-        intro = {"brain": "The computer and its memory card.", "power": "One battery pack powers everything: motors directly, the Pi through a 5 V converter.",
-                 "moving": "Body, wheels, motor driver and the wheel-turn counters.", "sensing": "Distance, turning, climate and air-quality sensors.",
+        intro = {"brain": "The computer and its memory card.", "power": "Two separate batteries: a USB power bank for the Pi, a 2 × 18650 pack for the motors. One shared ground.",
+                 "moving": "Body, wheels and the motor driver.", "sensing": "Distance, turning and climate sensors.",
                  "media": "Seeing, hearing and speaking.", "build": "What holds the robot and its wires together."}[g]
         H.append(f"<section class='page'><div class='ghead' style='background:{gc}'><h2>{escape(gname)}</h2><p>{escape(intro)}</p></div>"
                  + "".join(cards) + "</section>")
@@ -648,15 +619,15 @@ Use the same colours for your real wires where you can: mistakes become easy to 
 <p>Pin numbers are counted on the board (1-40). Coloured pins are used by the robot; grey ones are free.</p>
 {figure(fig_pinout_full(), "The 40-pin header, top view, USB ports pointing down the page.")}</section>
 <section class="page"><h3>Board close-ups</h3>{figure(fig_closeup_l298n(), "The L298N: battery and motors on the screw terminals, the Pi on the 6 pins.")}
-{figure(fig_closeup_small(), "XL4015, HC-SR04 and ADS1115: every pin and where it goes.")}</section>
-<section class="page"><h3>The hub board (you make it)</h3>{figure(D.fig_hub(), "Five rails on top, the five voltage dividers below.")}
+{figure(fig_closeup_small(), "HC-SR04, power bank, MPU6050 and AHT20: every pin and where it goes.")}</section>
+<section class="page"><h3>The hub board (you make it)</h3>{figure(D.fig_hub(), "Five rails on top, the three sonar Echo dividers below.")}
 <div class="note">The hub board saves wires: the Pi gives 5 V, 3.3 V, GND, SDA and SCL to the hub once, and every sensor plugs into
-the hub. The dividers turn the 5 V sonar Echo and MQ-135 signals into safe 3.3 V, and the battery's 8.4 V into 2.7 V.</div></section>""")
+the hub. The dividers turn the sonars' 5 V Echo signals into a safe 3.3 V.</div></section>""")
     # C. structure
     H.append(f"""<section class="page"><h2 class="sec"><span>C</span>The robot's structure</h2>
-<p>Two acrylic decks on standoffs. The battery hangs underneath, the motors and motor driver sit on the bottom deck, the
+<p>Two acrylic decks on standoffs. The motor battery hangs underneath, the motors, the power bank and the motor driver sit on the bottom deck, the
 computer and sensors on the top deck, and the distance sensors and webcam face forward.</p>
-{figure(fig_exploded(), "Exploded view: 1 battery, 2 bottom deck, 3 top deck, 4 front sensors.")}</section>
+{figure(fig_exploded(), "Exploded view: 1 motor battery, 2 bottom deck, 3 top deck, 4 front sensors.")}</section>
 <section class="page">{figure(D.fig_layout_side(), "Side view.")}{figure(fig_front(), "Front view: three distance sensors fanned out, the webcam above.")}</section>
 <section class="page">{figure(D.fig_layout_top(), "Top deck.")}{figure(fig_layout_bottom(), "Bottom deck.")}</section>""")
     # D. connections
@@ -664,13 +635,11 @@ computer and sensors on the top deck, and the distance sensors and webcam face f
 <p>Start with the big picture, then one diagram per group. The pin numbers are the physical pins of the Raspberry Pi header.</p>
 {figure(D.fig_overview(), "The system: five groups of parts around the Raspberry Pi.")}
 {figure(D.fig_full_harness(), "The complete harness: every block and the wires between them.")}</section>
-<section class="page"><h3>1 · Power</h3>{figure(D.fig_power(), "Battery → XL4015 → Pi; battery → L298N; battery divider → ADS1115 A1.")}</section>
-<section class="page"><h3>2 · I²C sensors</h3>{figure(D.fig_i2c(), "MPU6050, AHT20 + BMP280 and ADS1115 share four wires.")}
-<h3>3 · Wheel encoders</h3>{figure(D.fig_encoders(), "Encoders on pins 29 and 31.")}</section>
-<section class="page"><h3>4 · Motors</h3>{figure(D.fig_motors(), "Direction on pins 11/13/15/16, speed on pins 33/35.")}</section>
-<section class="page"><h3>5 · Distance sensors</h3>{figure(D.fig_sonar(), "Each Echo goes through a 1 kΩ / 2 kΩ divider.")}</section>
-<section class="page"><h3>6 · Gas sensor</h3>{figure(D.fig_gas(), "MQ-135 → 10 kΩ / 20 kΩ divider → ADS1115 A0.")}
-<h3>7 · Camera, microphone and speaker</h3>{figure(D.fig_audio(), "Webcam on USB; Pi audio jack → PAM8403 → speaker.")}</section>
+<section class="page"><h3>1 · Power</h3>{figure(D.fig_power(), "Power bank → Pi USB-C; 2 × 18650 → L298N; L298N GND → Pi pin 9 (common ground).")}</section>
+<section class="page"><h3>2 · I²C sensors</h3>{figure(D.fig_i2c(), "MPU6050 and AHT20 + BMP280 share four wires.")}</section>
+<section class="page"><h3>3 · Motors</h3>{figure(D.fig_motors(), "Direction on pins 11/13/15/16, speed on pins 33/35.")}</section>
+<section class="page"><h3>4 · Distance sensors</h3>{figure(D.fig_sonar(), "Each Echo goes through a 1 kΩ / 2 kΩ divider.")}</section>
+<section class="page"><h3>5 · Camera, microphone and speaker</h3>{figure(D.fig_audio(), "Webcam on USB; Pi audio jack → PAM8403 → speaker.")}</section>
 <section class="page"><h3>Every wire, one by one</h3>
 <p>The same list the robot software and the app's Wiring Bench use. Tick each wire off as you connect it.</p>{wire_table()}</section>""")
     return f"<!doctype html><html><head><meta charset='utf-8'><title>Raqib Parts and Wiring Atlas</title><style>{css}</style></head><body>{''.join(H)}</body></html>"

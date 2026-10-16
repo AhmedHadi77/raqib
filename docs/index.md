@@ -131,7 +131,7 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 Follow **[HARDWARE_BRINGUP.md](HARDWARE_BRINGUP.md)**. In short:
 
 1. Flash Raspberry Pi OS 64-bit, copy the `edge/` folder to the Pi, and run `bash scripts/install_pi.sh`.
-2. Wire the parts using **[WIRING.md](WIRING.md)**. Remember the voltage dividers on the HC-SR04 echo pins and on the MQ-135.
+2. Wire the parts using **[WIRING.md](WIRING.md)**. Remember the voltage dividers on the HC-SR04 echo pins and the common ground wire (L298N GND → Pi pin 9).
 3. Run the bring-up tests in order: `python -m hwtest.i2c_scan` → `test_motors` → `test_sensors` → `test_env` → `test_camera_audio`.
 4. In `edge/config.local.yaml`, set `simulation: false` and `mqtt.host: <your PC IP>`.
 5. Start the robot: `sudo systemctl enable --now inspection-robot`.
@@ -149,7 +149,7 @@ python tools/generate_certs.py --host <server-ip>   # then enable the 8883 TLS l
 
 ## Notes on changes from the proposal
 
-- **MQ-135 needs an ADC.** The Pi has no analog input, so an **ADS1115** (≈RM 12) has been added to the design (`docs/WIRING.md`).
+- **MQ-135 needs an ADC.** The Pi has no analog input, so the gas option uses an **ADS1115** (≈RM 12). The reliable 2.5 build leaves both out; see the upgrades in `docs/WIRING.md`.
 - **`motor_controller.py` bug fixed.** In Appendix B.1, `stop()` called `GPIO.cleanup()`, so the motors could not run again after the first stop. Cleanup now happens only on shutdown.
 - **"Gemini Pro Flash" is not a real model name.** The configurable default is `gemini-2.5-flash`.
 - **The mobile app gets telemetry from the backend over a WebSocket, not directly from MQTT.** This keeps broker credentials off the phone (least privilege). Commands still travel over MQTT from the backend to the robot.

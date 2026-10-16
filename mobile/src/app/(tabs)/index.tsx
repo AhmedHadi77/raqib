@@ -118,7 +118,7 @@ export default function Home() {
           <View style={styles.chips}>
             <Pill small level={batt == null ? 'idle' : batt < 20 ? 'alert' : batt < 40 ? 'warn' : 'ok'}
               icon={batt != null && batt < 20 ? 'battery-alert-variant-outline' : 'battery-high'}
-              label={batt != null ? `${Math.round(batt)}%` : 'Battery n/a'} />
+              label={batt != null ? `${Math.round(batt)}%` : 'Power bank'} />
             <Pill small level={wsConnected ? 'ok' : 'alert'} icon={wsConnected ? 'access-point' : 'access-point-off'} label={wsConnected ? 'Live' : 'Reconnecting'} />
             {t?.faults?.length ? <Pill small level="warn" icon="wrench-outline" label={`${t.faults.length} part${t.faults.length > 1 ? 's' : ''} need attention`} /> : null}
             {findings ? <Pill small level="warn" icon="alert-circle-outline" label={`${findings} open finding${findings > 1 ? 's' : ''}`} /> : null}

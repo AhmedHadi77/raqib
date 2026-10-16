@@ -1,4 +1,11 @@
-"""IMU + wheel-encoder + battery polling and dead-reckoning odometry (50 Hz)."""
+"""IMU + wheel-encoder + battery polling and dead-reckoning odometry (50 Hz).
+
+Two ways to measure distance:
+  encoders  - slot-disc encoders count wheel turns (full build, or `hardware.encoders: true`)
+  time      - no encoders (the reliable budget build): distance = wheel speed x time, where the wheel speed
+              comes from the power actually sent to the motors and the calibrated `motion.max_speed_mps`
+              (python -m hwtest.test_motors --calibrate). Heading always comes from the MPU6050.
+"""
 from __future__ import annotations
 
 import math
@@ -35,6 +42,11 @@ class SensorReader:
         self.imu = ImuReading()
         self.battery = BatteryReading(None, None)
         self._last_ticks = hw.encoders.ticks()
+        mode = str(m.get("odometry", "auto")).lower()
+        self.use_encoders = mode == "encoders" or (mode == "auto" and bool(hw.extra.get("encoders", True)))
+        self.max_speed = float(m.get("max_speed_mps", 0.5))
+        self.deadband = float(hw.extra.get("motor_deadband", m.get("motor_deadband", 0.15)))
+        self._last_t = time.monotonic()
         self._stop = threading.Event()
         self._bat_t = 0.0
         self._t = threading.Thread(target=self._loop, name="sensor-reader", daemon=True)
@@ -45,13 +57,19 @@ class SensorReader:
             imu = self.hw.imu.read()
             if self._yaw_offset is None:
                 self._yaw_offset = imu.yaw_deg
-            tl, tr = self.hw.encoders.ticks()
-            dl = (tl - self._last_ticks[0]) * self.m_per_tick
-            dr = (tr - self._last_ticks[1]) * self.m_per_tick
-            self._last_ticks = (tl, tr)
-            sl = -1.0 if self.motors.left < 0 else 1.0
-            sr = -1.0 if self.motors.right < 0 else 1.0
-            d = (sl * dl + sr * dr) / 2.0
+            now_t = time.monotonic()
+            dt, self._last_t = min(0.2, now_t - self._last_t), now_t
+            if self.use_encoders:
+                tl, tr = self.hw.encoders.ticks()
+                dl = (tl - self._last_ticks[0]) * self.m_per_tick
+                dr = (tr - self._last_ticks[1]) * self.m_per_tick
+                self._last_ticks = (tl, tr)
+                sl = -1.0 if self.motors.left < 0 else 1.0
+                sr = -1.0 if self.motors.right < 0 else 1.0
+                d = (sl * dl + sr * dr) / 2.0
+            else:
+                pl, pr = getattr(self.hw.motors, "applied", None) or (self.motors.left, self.motors.right)
+                d = (self.wheel_speed(pl) + self.wheel_speed(pr)) / 2.0 * dt
             with self.lock:
                 self.imu = imu
                 self.heading = angle_diff(imu.yaw_deg - self._yaw_offset, 0.0)
@@ -68,6 +86,14 @@ class SensorReader:
                 except Exception:  # noqa: BLE001
                     pass
             self._stop.wait(0.02)
+
+    def wheel_speed(self, power: float) -> float:
+        """Ground speed (m/s) of one side at a motor power in [-1, 1]: nothing below the dead band
+        (the motors do not turn), then linear up to max_speed_mps at full power."""
+        a = abs(power)
+        if a <= self.deadband:
+            return 0.0
+        return math.copysign(self.max_speed * (a - self.deadband) / (1.0 - self.deadband), power)
 
     def pose(self) -> dict:
         with self.lock:

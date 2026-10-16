@@ -1,29 +1,35 @@
-# Wiring guide (budget robot, under RM 500)
+# Wiring guide (reliable budget robot 2.5, ≈ RM 495)
 
 All GPIO numbers are **BCM** numbers, the same as in `edge/config.yaml → hardware:`. If you wire something
 differently, change the number in the config. The code does not need to change. The illustrated version with
 pictures of every part is `docs/Raqib_Robot_Build_Guide.pdf`.
 
+This build leaves out the parts that most often cause trouble in a first robot: the hand-adjusted 5 V converter,
+wheel encoders, the MQ-135 gas sensor and its ADS1115. They can be added later (see *Upgrades* at the end).
+
 ## Power (most important: do this first)
 
+Two separate batteries. Motor starts can never make the Pi restart.
+
 ```
-2x 18650 (7.4 V, holder with switch) ──┬──► L298N +12V / GND                (motors)
-                                       ├──► 1000 µF ─► XL4015 IN+ / IN-  ─► OUT 5.1 V ─► cut USB cable ─► Pi USB-C
-                                       └──► 10 kΩ ─┬─ 4.7 kΩ ─ GND         (battery level)
-                                                   └──► ADS1115 A1
+USB power bank 10,000 mAh, 5 V 3 A ── its own USB-C cable ──► Pi USB-C          (the Pi only)
+
+2x 18650 (7.4 V, holder with switch) ──► L298N +12V / GND                       (the motors only)
+
+L298N GND ──────────────────────────────► Pi pin 9 (GND)                        COMMON GROUND (essential)
 ```
 
-- **Set the XL4015 to 5.1 V with a multimeter before the Pi is plugged in.** Straight from the box it may give 12 V.
-- All grounds are joined through the battery − wire; also run L298N GND → Pi pin 9 (signal ground).
-- Never power the motors from the Pi's 5 V pin.
+- **The common ground wire is essential.** Without it the L298N cannot read the Pi's signals: the wheels do nothing or twitch.
+- Never connect the motor battery's + to the Pi or the hub board, and never power the motors from the Pi's 5 V pin.
+- The power bank must say **5 V 3 A** (15 W or more). Its LEDs show its charge; the app shows "Power bank" instead of a battery %.
+- Config: `battery_monitor: none`.
 
 ## I²C bus (Pi pins 3 = SDA, 5 = SCL, 3.3 V)
 
 | Device | Address | Notes |
 |---|---|---|
-| MPU6050 IMU | 0x68 | mount flat, near the centre of the chassis |
-| AHT20 + BMP280 combo | 0x38 + 0x77 (or 0x76) | temperature, humidity, pressure; away from the Pi CPU and the MQ-135 |
-| ADS1115 ADC | 0x48 | A0 = MQ-135, A1 = battery divider; ADDR → GND |
+| MPU6050 IMU | 0x68 | mount flat, near the centre of the chassis (cheap clones work too) |
+| AHT20 + BMP280 combo | 0x38 + 0x77 (or 0x76) | temperature, humidity, pressure; away from the Pi CPU |
 
 Check everything with `python -m hwtest.i2c_scan`.
 
@@ -37,10 +43,23 @@ Check everything with `python -m hwtest.i2c_scan`.
 | IN3 / IN4 | GPIO **22** / **23** (pins 15 / 16), right motor |
 | OUT1/OUT2 | left front + left rear motor, joined (red-red, black-black) |
 | OUT3/OUT4 | right front + right rear motor, joined |
-| +12V / GND | battery + / −; GND also to Pi pin 9 |
+| +12V / GND | motor battery + / −; **GND also to Pi pin 9** |
 
 If a side spins backwards, set `invert: true` for that motor in the config. `motor_pwm: auto` uses these GPIO pins
-when no PCA9685 is found.
+when no PCA9685 is found. The software ramps the power up gently (`motor_ramp_per_s: 4.0`, full power in 0.25 s);
+stopping is always immediate.
+
+## Distance without encoders: calibrate once
+
+`encoders: false` and `motion.odometry: auto`: distance = calibrated speed × motor power × time, turns from the MPU6050.
+
+```
+python -m hwtest.test_motors --deadband     # wheels in the air -> motor_deadband and min_power
+python -m hwtest.test_motors --calibrate    # on the floor, measure with a tape -> max_speed_mps
+python -m hwtest.test_motors --straight 2   # check: 1.8-2.2 m
+```
+
+Calibrate on the floor the robot will use, with charged motor cells.
 
 ## Camera: fixed USB webcam
 
@@ -64,31 +83,9 @@ ECHO ──[ 1 kΩ ]──┬──► GPIO (echo)
 | Center | GPIO 24 | GPIO 25 | front, straight ahead |
 | Right | GPIO 20 | GPIO 21 | front-right, pointing 45° right |
 
-VCC goes to 5 V and GND to GND. Run the pigpio daemon (`sudo systemctl enable --now pigpiod`) for accurate timing.
-
-## Wheel encoders (photoelectric)
-
-| Encoder | OUT pin | Power |
-|---|---|---|
-| Left | GPIO 5 | 3.3 V (if your module needs 5 V, add a divider on OUT) |
-| Right | GPIO 6 | 3.3 V |
-
-Set `motion.encoder_ticks_per_rev` to the number of slots on your encoder disc (usually 20).
-
-## MQ-135 gas sensor → ADS1115
-
-The MQ-135 heater needs **5 V** and its AOUT goes up to 5 V, so use a divider before the ADS1115:
-
-```
-MQ-135 AOUT ──[ 10 kΩ ]──┬──► ADS1115 A0
-                         [ 20 kΩ ]
-                         │
-                        GND          (gain 1.5 → config: mq135_divider_gain: 1.5)
-ADS1115 VDD = 3.3 V, GND = GND, SDA/SCL = I²C bus, ADDR = GND (0x48)
-```
-
-The MQ-135 needs **24–48 h of burn-in** the first time, and ~2 min of warm-up at every power-on.
-Calibrate R0 in clean outdoor air with `python -m hwtest.test_env --calibrate-mq135`.
+VCC goes to 5 V and GND to GND. The sensors are pinged one at a time with a quiet gap
+(`ultrasonic_gap_s: 0.012`), so they never hear each other's echoes. Run the pigpio daemon
+(`sudo systemctl enable --now pigpiod`) for the most accurate timing. Buy one spare sensor.
 
 ## Camera, microphone, speaker
 
@@ -99,13 +96,19 @@ Calibrate R0 in clean outdoor air with `python -m hwtest.test_env --calibrate-mq
 ## Pin summary
 
 ```
-GPIO  5 enc L   | GPIO 12 US-L trig | GPIO 20 US-R trig | GPIO 24 US-C trig | GPIO 13 ENA (PWM)
-GPIO  6 enc R   | GPIO 16 US-L echo | GPIO 21 US-R echo | GPIO 25 US-C echo | GPIO 19 ENB (PWM)
-GPIO 17 IN1     | GPIO 27 IN2       | GPIO 22 IN3       | GPIO 23 IN4
-GPIO  2/3 I2C SDA/SCL  (MPU6050 0x68, AHT20 0x38, BMP280 0x77, ADS1115 0x48)
+pin  9 GND -> L298N GND (common ground)
+GPIO 12 US-L trig | GPIO 20 US-R trig | GPIO 24 US-C trig | GPIO 13 ENA (PWM)
+GPIO 16 US-L echo | GPIO 21 US-R echo | GPIO 25 US-C echo | GPIO 19 ENB (PWM)
+GPIO 17 IN1       | GPIO 27 IN2       | GPIO 22 IN3       | GPIO 23 IN4
+GPIO  2/3 I2C SDA/SCL  (MPU6050 0x68, AHT20 0x38, BMP280 0x77)
 ```
 
-## Upgrades (the software finds them by itself)
+## Upgrades (the software finds them, or one config line)
 
-PCA9685 + 2 SG90 servos (ENA/ENB then on PCA9685 ch0/ch1, servos on ch14/ch15), Pi Camera (ribbon), BME680
-(instead of the AHT20), UPS module (INA219 gauge at 0x42). See the last page of the build guide.
+- **Gas / CO2:** MQ-135 + ADS1115 (0x48, ADDR → GND). MQ-135 AOUT → 10 kΩ / 20 kΩ divider → ADS1115 A0
+  (`mq135_divider_gain: 1.5`); set `gas_sensor: mq135`. Burn it in for 24-48 h, then
+  `python -m hwtest.test_env --calibrate-mq135` outdoors.
+- **Wheel encoders:** LM393 slot sensors on GPIO 5 / 6 (pins 29 / 31), VCC 3.3 V, 20-slot discs on the front motors;
+  set `encoders: true` and `encoder_ticks_per_rev`.
+- PCA9685 + 2 SG90 servos (ENA/ENB then on PCA9685 ch0/ch1, servos on ch14/ch15), Pi Camera (ribbon), BME680
+  (instead of the AHT20), UPS module (INA219 gauge at 0x42, then `battery_monitor: auto`). See the last page of the build guide.

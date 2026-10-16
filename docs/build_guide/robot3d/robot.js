@@ -102,7 +102,7 @@ export function buildRobot(scene) {
   for (const [x, z] of [[-96, -62], [-96, 62], [86, -62], [86, 62]]) cyl(3.2, Y2 - Y1 - T, M.brass, x, (Y1 + T + Y2) / 2, z, R, 'y', 6);
   ANCHORS['Brass standoffs 40 mm'] = new THREE.Vector3(86, 70, 62);
 
-  // ---------------- 4WD: four wheels + four TT motors under the bottom deck (front pair carries the encoders)
+  // ---------------- 4WD: four wheels + four TT motors under the bottom deck (no encoders: distance = motor time)
   const wheel = (x, zW) => {
     cyl(33, 26, M.rubber, x, 33, zW, R, 'z', 48);
     for (let k = 0; k < 18; k++) {        // tread ribs
@@ -124,33 +124,25 @@ export function buildRobot(scene) {
     wheel(-70, zW);
     box(48, 22, 18, M.yellow, -56, 33, s * 63, R);
     cyl(10, 22, M.steel, -21, 33, s * 63, R, 'x');
-    // encoder disc + slot sensor on the front motor's inner shaft
-    cyl(11, 1, M.black, 45, 33, s * 47, R, 'z', 40);
-    for (let k = 0; k < 20; k++) {
-      const a = (k / 20) * Math.PI * 2;
-      box(1.6, 3, 1.2, M.white, 45 + Math.cos(a) * 8.5, 33 + Math.sin(a) * 8.5, s * 47, R).rotation.z = a;
-    }
-    const eb = pcb('enc', 32, 14, 0x163f80, R); eb.position.set(30, Y1 - 0.2, s * 47 - 7); eb.rotation.x = Math.PI; eb.position.z += 14;
-    box(5, 12, 4, M.black, 45, Y1 - 7, s * 47 - 3.2, R); box(5, 12, 4, M.black, 45, Y1 - 7, s * 47 + 3.2, R);
     // each side's two motors joined (red-red, black-black), then up to the L298N
     wires.push(wire([[7, 40, s * 70], [-12, 45, s * 72], [-32, 40, s * 70]], 0xe23b2e, 0.7));
     wires.push(wire([[7, 37, s * 72], [-12, 43, s * 74], [-32, 37, s * 72]], 0x2a2e31, 0.7));
-    wires.push(wire([[-12, 45, s * 72], [-14, 48, s * 55], [-22, 56, s * 34], [-28, 60, s * 18]], 0xe23b2e, 0.7));
-    wires.push(wire([[-12, 43, s * 74], [-16, 47, s * 53], [-24, 55, s * 32], [-30, 60, s * 16]], 0x2a2e31, 0.7));
+    const ox = s > 0 ? 40.5 : 2.5;          // L298N OUT3/OUT4 (right, +z) or OUT1/OUT2 (left, -z) terminal block
+    wires.push(wire([[-12, 45, s * 72], [-6, 48, s * 60], [ox - 4, 54, s * 40], [ox, 60, -16]], 0xe23b2e, 0.7));
+    wires.push(wire([[-12, 43, s * 74], [-8, 47, s * 58], [ox + 2, 54, s * 38], [ox, 60, -12]], 0x2a2e31, 0.7));
   }
   ANCHORS['4 wheels + 4 TT gear motors (4WD)'] = new THREE.Vector3(45, 55, 104);
-  ANCHORS['Wheel encoders (slot sensor + disc)'] = new THREE.Vector3(45, 40, 47);
 
-  // battery holder under the bottom deck (cells face down)
+  // motor battery holder under the bottom deck (cells face down): powers the motors only
   box(77, 20, 41, M.blackPlastic, -25, Y1 - 10.5, 0, R);
   for (const dz of [-10, 10]) {
     cyl(9, 65, new THREE.MeshStandardMaterial({ color: 0x2f7dd1, roughness: 0.4 }), -25, Y1 - 19, dz, R, 'x');
   }
   box(8, 6, 10, M.red, 16, Y1 - 10, 16, R);
-  ANCHORS['Battery 2 × 18650 (under the deck)'] = new THREE.Vector3(-25, 26, 22);
+  ANCHORS['Motor battery 2 × 18650'] = new THREE.Vector3(-25, 26, 22);
 
-  // ---------------- L298N on the bottom deck
-  const LX = -40, LZ = -22, LY = Y1 + T + 3;
+  // ---------------- L298N at the front of the bottom deck
+  const LX = 0, LZ = -22, LY = Y1 + T + 3;
   const l = pcb('l298n', 43, 43, 0x7d1f1a, R); l.position.set(LX, LY, LZ);
   for (let i = 0; i < 7; i++) box(2.2, 24, 22, M.black, LX + 12 + i * 3.4, LY + 12, LZ + 11, R);
   box(26, 3, 22, M.black, LX + 21.5, LY + 1.5, LZ + 11, R);
@@ -159,11 +151,21 @@ export function buildRobot(scene) {
   pinRow(R, LX + 24, LZ + 38, 6, 2.54, 'x', LY);
   ANCHORS['L298N motor driver'] = new THREE.Vector3(LX + 21, LY + 24, LZ + 11);
 
-  // battery leads: holder -> L298N, and up to the XL4015 at the back of the top deck
-  wires.push(wire([[16, Y1 - 6, 20], [10, Y1 + 8, 10], [LX + 6, LY + 9, LZ + 37]], C.bat, 0.9));
-  wires.push(wire([[16, Y1 - 12, 20], [8, Y1 + 6, 5], [LX + 12, LY + 9, LZ + 37]], C.gnd, 0.9));
-  wires.push(wire([[16, Y1 - 6, 22], [-60, Y1 + 20, 30], [-103, 70, -20], [-104, Y2 + 10, -40], [-96, Y2 + 9, -58]], C.bat, 0.9));
-  wires.push(wire([[16, Y1 - 12, 22], [-62, Y1 + 18, 26], [-106, 70, -22], [-106, Y2 + 9, -42], [-96, Y2 + 9, -63]], C.gnd, 0.9));
+  // motor battery leads: holder -> L298N +12V / GND (nothing else)
+  wires.push(wire([[16, Y1 - 6, 20], [12, Y1 + 8, 22], [LX + 6, LY + 12, LZ + 42], [LX + 6, LY + 9, LZ + 37]], C.bat, 0.9));
+  wires.push(wire([[16, Y1 - 12, 20], [18, Y1 + 6, 24], [LX + 12, LY + 12, LZ + 43], [LX + 12, LY + 9, LZ + 37]], C.gnd, 0.9));
+
+  // ---------------- USB power bank on the bottom deck (the Pi's own battery), 68 x 16 x 140 mm, port towards +z
+  const BX = -58, BZ = 0, BY = Y1 + T + 8;
+  const bank = new THREE.Mesh(new RoundedBoxGeometry(68, 16, 140, 4, 5), M.blackPlastic);
+  bank.position.set(BX, BY, BZ); bank.castShadow = true; bank.receiveShadow = true; R.add(bank);
+  box(56, 0.6, 110, new THREE.MeshStandardMaterial({ color: 0x353a42, roughness: 0.5 }), BX, BY + 8.1, BZ - 6, R);
+  for (let k = 0; k < 4; k++) {
+    const led = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), new THREE.MeshBasicMaterial({ color: k < 3 ? 0x3ddc84 : 0x3a3f45 }));
+    led.position.set(BX - 18 + k * 6, BY + 8.4, BZ + 58); R.add(led);
+  }
+  box(9, 3.4, 2, M.steel, BX + 14, BY, BZ + 70.5, R);                         // USB-C out
+  ANCHORS['USB power bank 10,000 mAh (Pi only)'] = new THREE.Vector3(BX, BY + 9, BZ - 30);
 
   // ---------------- top deck
   const TY = Y2 + T;
@@ -185,23 +187,16 @@ export function buildRobot(scene) {
     return [PX + 10.5 + i * 2.54, PY + 6.5, PZ + (n % 2 ? 3.6 : 6.1)];
   };
 
-  // XL4015 at the back right (long side along z)
-  const xl = pcb('xl4015', 54, 23, 0x163f80, R); xl.position.set(-80, TY + 2, -70); xl.rotation.y = -Math.PI / 2;
-  cyl(8, 9, M.black, -90.5, TY + 6.5, -54.5, R);                                    // coil
-  box(5, 6, 5, M.blueTerm, -95.4, TY + 5, -41.8, R);                                // trimmer
-  box(9, 9, 10, M.blueTerm, -91, TY + 6.5, -66, R); box(9, 9, 10, M.blueTerm, -91, TY + 6.5, -20, R);   // IN / OUT
-  cyl(5, 12, new THREE.MeshStandardMaterial({ color: 0x1d3f8f, roughness: 0.4 }), -104, TY + 8, -72, R);   // 1000 uF
-  ANCHORS['XL4015 5 V converter'] = new THREE.Vector3(-95, TY + 10, -40);
-  // cut USB cable: XL4015 OUT -> Pi USB-C
-  wires.push(wire([[-100, TY + 8, -20], [-112, TY + 14, 10], [-100, TY + 16, 72], [-60, TY + 14, 70], [PX + 11.5, PY + 2, PZ + 64],
-    [PX + 11.5, PY + 1.6, PZ + 58]], C.usb, 1.8));
-  ANCHORS['Cut USB cable → Pi power'] = new THREE.Vector3(-108, TY + 14, 40);
+  // power bank -> its own USB-C cable -> Pi USB-C (goes round the deck edge)
+  wires.push(wire([[BX + 14, BY, BZ + 72], [BX + 14, BY + 2, BZ + 82], [BX + 10, (BY + PY) / 2, BZ + 84], [PX + 11.5, PY + 4, PZ + 70],
+    [PX + 11.5, PY + 2, PZ + 62], [PX + 11.5, PY + 1.6, PZ + 58]], C.usb, 1.8));
+  ANCHORS['USB-C cable → Pi power'] = new THREE.Vector3(BX + 10, (BY + PY) / 2, BZ + 84);
 
-  // hub board (perfboard) on the right side, ADS1115 next to it
+  // hub board (perfboard) on the right side: rails + 3 sonar echo dividers
   const HX = -58, HZ = -72, HW = 70, HD = 40;
   for (const [x, z] of [[3, 3], [HW - 3, 3], [3, HD - 3], [HW - 3, HD - 3]]) cyl(2.2, 4, M.brass, HX + x, TY + 2, HZ + z, R, 'y', 6);
   pcb('hub', HW, HD, 0x9c7f42, R).position.set(HX, TY + 4, HZ);
-  ANCHORS['Hub board (rails + dividers)'] = new THREE.Vector3(HX + 35, TY + 6, HZ + 20);
+  ANCHORS['Hub board (rails + 3 echo dividers)'] = new THREE.Vector3(HX + 35, TY + 6, HZ + 20);
   const rail = (i, x) => [HX + x, TY + 6, HZ + 3.6 + i * 2.9];          // 0 5V,1 3V3,2 GND,3 SDA,4 SCL
   // Pi -> hub rails
   const toRail = [[2, 0, C.v5], [1, 1, C.v33], [6, 2, C.gnd], [3, 3, C.sda], [5, 4, C.scl]];
@@ -210,26 +205,17 @@ export function buildRobot(scene) {
     wires.push(wire([p, [p[0], p[1] + 10 + k, p[2] - 2], [p[0] - 2, TY + 16 + k, HZ + HD + 6], rail(i, 60 - k * 3)], c));
   });
 
-  // ADS1115 + MPU6050 in front of the hub
-  pcb('ads', 28, 17, 0x4a2a70, R).position.set(20, TY + 3, -72);
-  pinRow(R, 21.5, -55.5 + 0.5, 10, 2.54, 'x', TY + 3);
-  ANCHORS['ADS1115 ADC'] = new THREE.Vector3(34, TY + 6, -64);
+  // MPU6050 in front of the hub
   pcb('mpu', 21, 16, 0x163f80, R).position.set(22, TY + 3, -42);
   ANCHORS['MPU6050 motion sensor'] = new THREE.Vector3(32, TY + 6, -34);
-  // I2C + power wires from the hub to ADS / MPU
+  // I2C + power wires from the hub to the MPU
   [[0, C.v33, 1], [1, C.gnd, 2], [2, C.scl, 4], [3, C.sda, 3]].forEach(([k, c, ri]) => {
-    wires.push(wire([[23 + k * 2.54, TY + 9, -55], [16, TY + 14, -56 + k], rail(ri, 66)], c, 0.6));
     wires.push(wire([[24 + k * 2.54, TY + 6, -27], [14, TY + 14, -36 + k], rail(ri, 64)], c, 0.6));
   });
 
-  // AHT20 + BMP280 (front left) and MQ-135 (back left), PAM8403 + speaker (back middle)
+  // AHT20 + BMP280 (front left), PAM8403 + speaker (back)
   pcb('aht', 15, 12, 0x4a2a70, R).position.set(40, TY + 3, 50);
   ANCHORS['AHT20 + BMP280 climate'] = new THREE.Vector3(47, TY + 5, 56);
-  const mqX = -104, mqZ = 40;
-  pcb('mq', 32, 28, 0x163f80, R).position.set(mqX, TY + 3, mqZ);
-  const can = cyl(10, 13, M.mesh, mqX + 13, TY + 9.5, mqZ + 12, R, 'y', 32);
-  cyl(10.6, 3, M.copper, mqX + 13, TY + 4.5, mqZ + 12, R);
-  ANCHORS['MQ-135 gas sensor'] = new THREE.Vector3(mqX + 13, TY + 16, mqZ + 12);
   pcb('pam', 21, 13, 0x145a37, R).position.set(-80, TY + 3, 5);
   ANCHORS['PAM8403 amplifier'] = new THREE.Vector3(-70, TY + 5, 12);
   const spk = cyl(20, 6, M.black, -96, TY + 3, 6, R, 'y', 48);
@@ -241,11 +227,9 @@ export function buildRobot(scene) {
   wires.push(wire([[-60, TY + 5, 8], [-56, TY + 12, -10], rail(0, 8)], C.v5, 0.6));
   wires.push(wire([[-60, TY + 5, 10], [-54, TY + 12, -12], rail(2, 6)], C.gnd, 0.6));
   wires.push(wire([[-80, TY + 5, 12], [-90, TY + 8, 10], [-92, TY + 6, 8]], 0xe23b2e, 0.5));
-  // AHT, MQ to the hub
+  // AHT to the hub
   [[0, C.v33, 1], [1, C.gnd, 2], [2, C.scl, 4], [3, C.sda, 3]].forEach(([k, c, ri]) =>
     wires.push(wire([[41 + k * 3.5, TY + 4, 62], [30, TY + 20, 30 + k], [0, TY + 20, -10], rail(ri, 40 + k)], c, 0.6)));
-  [[0, C.v5, 0], [1, C.gnd, 2], [3, C.audio, 2]].forEach(([k, c, ri]) =>
-    wires.push(wire([[mqX + 4 + k * 6, TY + 3, mqZ + 27], [mqX + 16, TY + 26, mqZ - 10], [-60, TY + 26, -20], rail(ri, 20 + k * 3)], c, 0.6)));
 
   // ---------------- front: three HC-SR04 on brackets, webcam on a post
   const sonar = (x, z, angle, name, trigPin, echoPin, color) => {
@@ -288,7 +272,7 @@ export function buildRobot(scene) {
   ANCHORS['USB webcam + microphone (fixed)'] = new THREE.Vector3(80, TY + 70, 0);
   wires.push(wire([[56, TY + 50, 0], [40, TY + 30, 10], [PX + 85 + 6, PY + 9, PZ + 29]], C.usb, 1.4));
 
-  // ---------------- Pi -> L298N and encoders through a hole in the top deck
+  // ---------------- Pi -> L298N through a hole in the top deck (pin 9 = the common ground)
   const hole = [-8, TY, -6];
   const sigs = [[9, C.gnd, 0], [11, C.sig, 1], [13, C.sig, 2], [15, C.sig, 3], [16, C.sig, 4], [33, C.pwm, -1], [35, C.pwm, 5]];
   sigs.forEach(([n, c, k], j) => {
@@ -298,11 +282,6 @@ export function buildRobot(scene) {
     wires.push(wire([p, [p[0], p[1] + 8, p[2] - 3], [hole[0] + j, TY + 4, hole[2] - j], [hole[0] + j, TY - 10, hole[2] - j],
       [tgt[0], LY + 18, tgt[2] + 4], tgt], c, 0.6));
   });
-  for (const [n, s] of [[29, 1], [31, -1]]) {
-    const p = pin(n);
-    wires.push(wire([p, [p[0], p[1] + 8, p[2] - 3], [hole[0] + 8, TY + 2, hole[2] + 4], [10, Y1 + 18, s * 30], [30, Y1 - 2, s * 40]],
-      C.s4, 0.6));
-  }
   ANCHORS['Jumper wires (colour-coded)'] = new THREE.Vector3(-20, TY + 22, -8);
 
   wires.forEach((w) => R.add(w));

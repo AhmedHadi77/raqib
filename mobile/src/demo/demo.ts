@@ -75,7 +75,7 @@ function telemetry(): Telemetry {
   const z = zoneAt();
   Object.assign(t, {
     v: 1, robot_id: RID, ts: now(), state: R.estop ? 'EMERGENCY_STOP' : R.state, simulation: true, privacy_mode: R.privacy,
-    battery: { voltage: +(6.6 + 1.8 * R.battery / 100).toFixed(2), percent: Math.round(R.battery * 10) / 10 },   // 2 x 18650
+    battery: { voltage: null, percent: null },   // reliable build: Pi on a power bank, no battery gauge
     pose: { x: +R.x.toFixed(3), y: +R.y.toFixed(3), heading_deg: +(((R.h + 540) % 360) - 180).toFixed(1), zone: z, odometer_m: +R.odo.toFixed(2) },
     motors: { left: R.drive.l, right: R.drive.r },
     pan_tilt: { pan: R.pan, tilt: R.tilt },
@@ -427,7 +427,7 @@ async function chat(message: string): Promise<ChatResponse> {
     return reply(said.join(' '), steps, t0);
   }
   if (/(battery|status|where are you|how are you)/.test(m)) {
-    return reply(`I'm in ${nice(zoneAt())}, battery ${Math.round(R.battery)}%, everything working. (Demo robot inside this phone.)`, [], t0);
+    return reply(`I'm in ${nice(zoneAt())}, everything working (the Pi runs on a power bank: check its LEDs for the charge). (Demo robot inside this phone.)`, [], t0);
   }
   return reply('In the demo I understand: "inspect the IoT lab", "patrol all rooms", "check the aircon in hall B", "go to lecture hall A", '
     + '"move forward 1 meter", "turn left", "what do you see", "what did you find", "who is talking", "monitor the exam" and "battery".', [], t0);

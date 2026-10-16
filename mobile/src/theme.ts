@@ -2,7 +2,7 @@
 // Navy ink + signal blue come from the logo; cyan = the robot / live data; amber is reserved for findings.
 import { configureFonts, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 
-export const APP_VERSION = '2.4.1';
+export const APP_VERSION = '2.5.0';
 
 export const BRAND = {
   name: 'Raqib',

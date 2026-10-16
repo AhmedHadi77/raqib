@@ -55,7 +55,7 @@ def test_navigation_and_sensing(app):
     assert r["status"] == "ok", r
     env = app.run_command("read_environment")["result"]
     assert env["comfort_verdict"] == "UNCOMFORTABLE_HOT_HUMID"
-    assert env["gas_verdict"] == "WARNING"
+    assert env["gas_verdict"] == "NOT_MEASURED"        # the reliable budget build has no gas sensor
     assert app.run_command("listen_audio")["result"]["label"] == "ac_fan"
     snap = app.run_command("snapshot")["result"]
     assert snap["sim_truth"]["zone"] == "IoT_Lab" and len(snap["image_b64"]) > 1000
@@ -219,5 +219,24 @@ def test_virtual_wiring_controls_the_simulated_robot():
         assert st["shorts"] and app.hw.health["power"]["ok"] is False
         st = app.run_command("set_wiring", enabled=False)["result"]
         assert not st["enabled"] and app.hw.health["motors"]["ok"]
+    finally:
+        app.shutdown()
+
+
+def test_full_build_still_measures_gas():
+    """sim_build: full (MQ-135 + BME680 fitted): the VOC source in the IoT Lab gives a gas WARNING."""
+    from robot.app import RobotApp
+    from robot.config import load_config
+
+    app = RobotApp(load_config(overrides={"sim_build": "full"}), connect_mqtt=False)
+    app.safety.cloud_timeout = 1e9
+    w = app.hw.extra["world"]
+    try:
+        z = app.zones["IoT_Lab"]
+        with w.lock:
+            w.x, w.y, w.theta = float(z["x"]), float(z["y"]), 0.0
+        app.sensors.reset_pose(float(z["x"]), float(z["y"]), 0.0)
+        env = app.run_command("read_environment", fresh=True)["result"]
+        assert env["gas_verdict"] == "WARNING"
     finally:
         app.shutdown()

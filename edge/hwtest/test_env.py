@@ -37,6 +37,9 @@ def main():
             print(f"\nSet environment.gas_baseline_ohm: {base:.0f}")
             return
         if args.calibrate_mq135:
+            if not hw.env.read().mq135_volts:
+                print("No MQ-135 fitted (reliable budget build): nothing to calibrate.")
+                return
             rl = float(cfg["hardware"].get("mq135_load_resistor_kohm", 10))
             vs = []
             for _ in range(60):

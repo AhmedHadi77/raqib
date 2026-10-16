@@ -209,9 +209,11 @@ class RobotTools:
         state = {"IDLE": "ready", "MANUAL": "in manual drive", "AUTONOMOUS_PATROL": "on a mission",
                  "EMERGENCY_STOP": "emergency-stopped", "SAFE_HOLD": "in safe hold"}.get(t.get("state"), t.get("state"))
         pct = b.get("percent")
-        s = f"I'm {state} at {spoken_zone(pose.get('zone'))}" + (f", battery {pct:.0f}%." if pct is not None else ".")
+        s = f"I'm {state} at {spoken_zone(pose.get('zone'))}" + (f", battery {pct:.0f}%." if pct is not None else
+                                                                  " (battery: check the power bank's LEDs).")
         if e:
-            s += f" It's {e.get('temperature_c'):.1f}°C, {e.get('humidity_pct'):.0f}% humidity, air quality {e.get('aqi_label') or e.get('aqi')}."
+            s += f" It's {e.get('temperature_c'):.1f}°C, {e.get('humidity_pct'):.0f}% humidity" + (
+                f", air quality {e.get('aqi_label') or e.get('aqi')}." if e.get("aqi") is not None else ".")
         return {"summary": s, "data": t}
 
     async def _snapshot_and_analyze(self, focus: str | None = None):
@@ -267,9 +269,14 @@ class RobotTools:
                    "UNCOMFORTABLE_COLD": "too cold", "UNCOMFORTABLE_HUMID": "too humid",
                    "UNCOMFORTABLE_DRY": "too dry"}.get(str(e.get("comfort_verdict")), str(e.get("comfort_verdict") or "").lower().replace("_", " "))
         where = spoken_zone(e.get("zone")) if e.get("zone") else "here"
-        s = (f"In {where} it's {e.get('temperature_c'):.1f}°C and {e.get('humidity_pct'):.0f}% humidity, "
-             f"which is {comfort or 'unknown'}. Air quality is {str(e.get('aqi_label') or '').lower() or 'unknown'}"
-             f" (AQI {e.get('aqi'):.0f})." if e.get("aqi") is not None else "")
+        s = ""
+        if e.get("temperature_c") is not None:
+            s = (f"In {where} it's {e.get('temperature_c'):.1f}°C and {e.get('humidity_pct'):.0f}% humidity, "
+                 f"which is {comfort or 'unknown'}.")
+        if e.get("aqi") is not None:
+            s += f" Air quality is {str(e.get('aqi_label') or '').lower() or 'unknown'} (AQI {e.get('aqi'):.0f})."
+        elif e.get("gas_verdict") == "NOT_MEASURED":
+            s += " (This robot has no gas sensor, so air quality is not measured.)"
         if e.get("gas_verdict") in ("WARNING", "HAZARD"):
             s += " Please ventilate the room."
         return {"summary": s.strip() or "Environment read.", "data": e}

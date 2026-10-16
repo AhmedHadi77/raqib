@@ -624,3 +624,17 @@ def capacitor(s, x, y, sc=1.0, label="1000 µF"):
 def caster(s, cx, cy, r=13):
     s.circle(cx, cy, r + 5, "#c9ced3", "#8b9399", 1.5)
     s.circle(cx, cy, r - 2, "#202326")
+
+
+def power_bank(s, x, y, sc=1.0):
+    """10,000 mAh USB power bank with LEDs and USB-C port (powers the Pi only)."""
+    k = sc
+    s.rect(x, y, 170 * k, 78 * k, "#2b2f36", "#15181c", rx=14 * k, sw=1.5)
+    s.rect(x + 8 * k, y + 8 * k, 154 * k, 62 * k, "#353a42", None, rx=10 * k)
+    s.text(x + 72 * k, y + 36 * k, "10000 mAh", 13 * k, "#e8edf3", "middle", 800)
+    s.text(x + 72 * k, y + 54 * k, "5V 3A", 9 * k, "#aeb6c0", "middle", 700)
+    for i in range(4):
+        s.circle(x + (138 + i * 0) * k, y + (22 + i * 11) * k, 3 * k, "#3ddc84" if i < 3 else "#55606b")
+    s.rect(x + 170 * k - 3, y + 30 * k, 8 * k, 18 * k, "#9aa1a7", "#6b737a", rx=2)
+    s.text(x + 150 * k, y + 72 * k, "USB-C", 6.5 * k, "#aeb6c0", "middle", 700)
+    return {"usbc": (x + 170 * k + 5 * k, y + 39 * k)}

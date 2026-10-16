@@ -8,7 +8,6 @@ against the wires you made to the virtual Raspberry Pi, and behaves the way the 
   * IN1 / IN2 swapped      -> that side of the robot drives backwards
   * sensors on each other's pins -> left and right readings swapped
   * 5 V on a 3.3 V part    -> the part is "burnt" until you fix the wire
-  * no battery divider     -> no battery % (exactly like the real budget robot)
   * power to ground        -> short circuit: the whole robot is off
 
 Robot health in the app shows every problem with what to fix. Turned off, the robot works as before.
@@ -108,7 +107,7 @@ def evaluate(wires: dict[str, str]) -> dict:
             return False, "not on the I2C bus (SDA must be pin 3, SCL pin 5)"
         return True, ""
 
-    power = w("buck", "in+") == "bat+" and w("buck", "in-") == "bat-" and w("buck", "out") == "usbc"
+    power = w("pbank", "usb") == "usbc"
     eff: dict = {"power": power and not shorts, "shorts": shorts, "warnings": warnings}
     on = eff["power"]
 
@@ -142,32 +141,17 @@ def evaluate(wires: dict[str, str]) -> dict:
         us[k] = src if on else None
     eff["ultrasonic"] = us
 
-    # ---------------- encoders
-    enc = {}
-    for k, pin in (("left", 29), ("right", 31)):
-        src = None
-        for phys in ("left", "right"):
-            if vcc_ok("enc") and _pin(w("enc", phys)) == pin:
-                src = phys
-        enc[k] = src if on else None
-    eff["encoders"] = enc
+    # ---------------- encoders: not fitted on the reliable budget build (distance from motor time + IMU)
+    eff["encoders"] = {"left": None, "right": None}
 
     imu_ok, imu_why = i2c("imu")
     aht_ok, aht_why = i2c("aht")
-    ads_ok, ads_why = i2c("ads", "vdd")
-    addr = _cls(w("ads", "addr"))
-    if ads_ok and addr != "gnd":
-        ads_ok, ads_why = False, ("ADDR is on 3.3 V, so it answers at 0x49 but config.yaml expects 0x48" if addr == "p33"
-                                  else "ADDR is not connected, so its I2C address is random")
-    mq_ok = vcc_ok("mq") and w("mq", "aout") == "adsa0" and ads_ok
-    bat_ok = (w("batdiv", "in") == "bat+" and _cls(w("batdiv", "gnd")) == "gnd" and w("batdiv", "out") == "adsa1"
-              and ads_ok)
     cam_ok = on and w("cam", "usb") == "usb"
     eff.update({
-        "imu": on and imu_ok, "climate": on and aht_ok, "gas": on and mq_ok,
+        "imu": on and imu_ok, "climate": on and aht_ok, "gas": False,
         "camera": cam_ok, "microphone": cam_ok,
         "speaker": on and vcc_ok("spk") and w("spk", "in") == "jack",
-        "battery": on and bat_ok,
+        "battery": False,
     })
     burnt = {msg.split(" ")[0] for msg in warnings if "burn" in msg}
     if burnt:
@@ -182,10 +166,10 @@ def evaluate(wires: dict[str, str]) -> dict:
     if shorts:
         put("power", False, "SHORT CIRCUIT - " + shorts[0], "Remove that wire on the Wiring Bench. The robot is off until you do.")
     elif not power:
-        put("power", False, "No power: the Pi gets nothing from the XL4015",
-            "XL4015 IN+ / IN- to the battery, OUT through the cut USB cable into the Pi's USB-C.")
+        put("power", False, "No power: the Pi is not connected to the power bank",
+            "Plug the power bank's USB-C cable into the Pi's USB-C power input.")
     else:
-        put("power", True, "Battery -> XL4015 5.1 V -> Raspberry Pi")
+        put("power", True, "Power bank -> Raspberry Pi; motors on their own 2 x 18650 pack")
     put("i2c", on, "pins 3 (SDA) and 5 (SCL)" if on else "Pi is off")
 
     def side_txt(phys):
@@ -204,7 +188,8 @@ def evaluate(wires: dict[str, str]) -> dict:
     elif not l298_power:
         put("motors", False, "L298N has no motor power", "L298N +12V to Battery +, GND to Battery -.")
     elif not common_gnd:
-        put("motors", False, "L298N ground is not joined to the Pi ground", "Wire L298N GND (to Pi) to any GND pin.")
+        put("motors", False, "L298N ground is not joined to the Pi ground",
+            "With two batteries this wire is essential: L298N GND (to Pi) to Pi pin 9 or any GND pin.")
     elif None in wheels.values():
         dead = [k for k, v in wheels.items() if v is None]
         put("motors", False, f"{' and '.join(dead)} wheel does not turn",
@@ -220,30 +205,24 @@ def evaluate(wires: dict[str, str]) -> dict:
                                                       for k in bad_us),
         "" if not bad_us else "Each sensor: VCC 5 V, GND, TRIG and ECHO on its own GPIO pair (see config.yaml). "
                               "No reading in front = forward driving is refused.")
-    bad_enc = [k for k, v in enc.items() if v != k]
-    put("encoders", not bad_enc, "GPIO 5 / 6" if not bad_enc else
-        "; ".join(f"{k}: " + ("no ticks" if enc[k] is None else f"counts the {enc[k]} wheel") for k in bad_enc),
-        "" if not bad_enc else "VCC 3.3 V, GND, left OUT on pin 29 (GPIO 5), right OUT on pin 31 (GPIO 6).")
+    put("encoders", on, "not fitted: distance from motor time + MPU6050 heading" if on else "no power")
     put("imu", eff["imu"], "MPU6050 at 0x68" if eff["imu"] else ("no power" if not on else f"MPU6050 {imu_why}"))
-    env_detail = ("AHT20 + BMP280 + MQ-135" if eff["climate"] and eff["gas"] else
-                  "AHT20 only: " + ("MQ-135 / ADS1115 " + (ads_why or "not wired")) if eff["climate"] else
-                  "no power" if not on else f"AHT20 {aht_why}")
-    put("environment", eff["climate"] and eff["gas"], env_detail,
-        "" if eff["climate"] and eff["gas"] else "AHT20 + ADS1115 on I2C (3.3 V), MQ-135 on 5 V with AOUT -> divider -> A0.")
+    put("environment", eff["climate"], "AHT20 + BMP280 · no gas sensor fitted" if eff["climate"] else
+        "no power" if not on else f"AHT20 {aht_why}",
+        "" if eff["climate"] else "AHT20 + BMP280 on I2C: VIN 3.3 V, GND, SDA pin 3, SCL pin 5.")
     put("camera", eff["camera"], "USB webcam" if eff["camera"] else "no power" if not on else "webcam not plugged into USB")
     put("microphone", eff["microphone"], "webcam microphone" if eff["microphone"] else "no power" if not on else
         "the webcam (and its microphone) is not plugged into USB")
     put("speaker", eff["speaker"], "PAM8403 on the Pi audio jack" if eff["speaker"] else "no power" if not on else
         "amplifier needs 5 V, GND and audio from the Pi's 3.5 mm jack")
-    put("battery", eff["battery"], "2x18650 through the divider on ADS1115 A1" if eff["battery"] else "no power" if not on else
-        "battery divider: 10 kOhm from Battery +, 4.7 kOhm to GND, middle to ADS1115 A1" + ("" if ads_ok else f" (ADS1115 {ads_why})"))
+    put("battery", on, "not measured: Pi on a power bank (see its LEDs), motors on 2 x 18650" if on else "no power")
     for msg in warnings:
         H.setdefault("wiring", {"ok": False, "detail": msg, "hint": "Fix that wire on the Wiring Bench."})
 
     done = sum(1 for v in pins.values() if v["status"] == "ok")
     return {"pins": pins, "effects": eff, "health": H, "done": done, "total": len(pins),
             "drivable": bool(on and wheels["left"] == ("L", 1) and wheels["right"] == ("R", 1) and us.get("center") == "center"
-                             and eff["imu"] and enc == {"left": "left", "right": "right"})}
+                             and eff["imu"])}
 
 
 # ============================================================================ part proxies

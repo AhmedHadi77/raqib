@@ -194,17 +194,20 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 [docs/Raqib_Parts_and_Wiring_Atlas.pdf](docs/Raqib_Parts_and_Wiring_Atlas.pdf) (`python docs/build_guide/atlas.py`).
 
 **What to buy and how to build it:** [docs/Raqib_Robot_Build_Guide.pdf](docs/Raqib_Robot_Build_Guide.pdf), the
-budget edition (≈ RM 498): Pi 4 2 GB, one 2 x 18650 pack with an XL4015 5 V converter, 4WD chassis, USB webcam with mic,
-AHT20 + BMP280, no servos (the robot turns to look around). The software detects the bigger parts (PCA9685 + servos,
-Pi Camera, BME680, UPS module) by itself if you add them later.
+reliable budget edition 2.5 (≈ RM 495): Pi 4 2 GB on its own USB power bank, the motors on a separate 2 x 18650 pack
+(common ground to Pi pin 9), 4WD chassis, three HC-SR04, MPU6050, AHT20 + BMP280, USB webcam with mic, PAM8403 speaker.
+Left out on purpose to make the first build work: the hand-set 5 V converter, wheel encoders (distance comes from
+calibrated motor time + MPU6050 heading, `hwtest.test_motors --calibrate`) and the MQ-135 gas sensor + ADS1115
+(the app shows air quality as "not measured"). The software detects the bigger parts (PCA9685 + servos, Pi Camera,
+BME680, UPS module) by itself if you add them later; gas sensor and encoders need one config line each.
 
 Follow **[docs/HARDWARE_BRINGUP.md](docs/HARDWARE_BRINGUP.md)**. In short:
 
 1. Flash Raspberry Pi OS 64-bit (add your phone's hotspot as its Wi-Fi). On the PC run `pack_robot_for_pi.bat`, copy
    `raqib-robot.zip` to the Pi and run `bash edge/scripts/install_pi.sh`. The Pi now runs the robot **and its own
    server**: no laptop needed, it starts at every power-on, and makes its own Wi-Fi "Raqib-Robot" when no known Wi-Fi is around.
-2. Wire the parts using **[docs/WIRING.md](docs/WIRING.md)**. Remember the voltage dividers on the HC-SR04 echo pins and on the MQ-135.
-3. Run the bring-up tests in order: `python -m hwtest.i2c_scan` → `test_motors` → `test_sensors` → `test_env` → `test_camera_audio`.
+2. Wire the parts using **[docs/WIRING.md](docs/WIRING.md)**. Remember the voltage dividers on the HC-SR04 echo pins and the common ground wire (L298N GND → Pi pin 9).
+3. Run the bring-up tests in order: `python -m hwtest.i2c_scan` → `test_motors` (then `--deadband`, `--calibrate`) → `test_sensors` → `test_env` → `test_camera_audio`.
 4. Open the app on the same Wi-Fi and tap **Find automatically**. Paste your AI key once in **More > AI settings**.
 5. Measure the real room positions and put them in `zones:` in `config.yaml`.
 6. Open **More > Robot health** in the app. Every part shows green or red; tap a red one for the fix, and
@@ -226,7 +229,7 @@ python tools/generate_certs.py --host <server-ip>   # then enable the 8883 TLS l
 
 ## Notes on changes from the proposal
 
-- **MQ-135 needs an ADC.** The Pi has no analog input, so an **ADS1115** (≈RM 12) has been added to the design (`docs/WIRING.md`).
+- **MQ-135 needs an ADC.** The Pi has no analog input, so the gas option uses an **ADS1115** (≈RM 12). The reliable 2.5 build leaves both out; see the upgrades in `docs/WIRING.md`.
 - **`motor_controller.py` bug fixed.** In Appendix B.1, `stop()` called `GPIO.cleanup()`, so the motors could not run again after the first stop. Cleanup now happens only on shutdown.
 - **"Gemini Pro Flash" is not a real model name.** The configurable default is `gemini-2.5-flash`.
 - **The mobile app gets telemetry from the backend over a WebSocket, not directly from MQTT.** This keeps broker credentials off the phone (least privilege). Commands still travel over MQTT from the backend to the robot.

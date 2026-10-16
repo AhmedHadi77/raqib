@@ -84,7 +84,13 @@ def main():
               "energy_waste" in {a["type"] for a in hb["anomalies"]} if hb else False)
         check("T-04", "blocked emergency exit flagged", "blocked_exit" in types)
         check("T-05", "hot & humid room -> UNCOMFORTABLE", lab and lab["comfort_verdict"] == "UNCOMFORTABLE_HOT_HUMID")
-        check("T-06", "VOC source -> gas WARNING", lab and lab["gas_verdict"] in ("WARNING", "HAZARD"))
+        if lab and lab["gas_verdict"] == "NOT_MEASURED":     # reliable budget build: no gas sensor fitted
+            md = str(rep.get("markdown") or "")
+            check("T-06", "no gas sensor: report says 'not measured', no false gas alarm",
+                  "not measured" in md.lower() and not any(a["type"] == "air_quality" for a in lab["anomalies"]),
+                  "markdown has 'not measured'" if "not measured" in md.lower() else f"keys: {list(rep)[:12]}")
+        else:
+            check("T-06", "VOC source -> gas WARNING", lab and lab["gas_verdict"] in ("WARNING", "HAZARD"))
         check("T-07", "AC audio signature recognised", lab and lab["audio"]["label"] == "ac_fan")
 
         # V-1..V-3: spoken-style commands get a spoken answer

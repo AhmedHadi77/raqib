@@ -1,8 +1,10 @@
 # Hardware bring-up: from boxes of parts to a working robot
 
-> The full illustrated build guide (shopping list under RM 500, power and wiring diagrams, assembly) is
-> `docs/Raqib_Robot_Build_Guide.pdf`. Budget build: motor speed on GPIO 13/19 (pins 33/35) instead of a PCA9685,
-> no servos, AHT20 + BMP280, battery voltage on ADS1115 A1, USB webcam, speaker amp on the Pi audio jack. When the real robot is running, start the PC with
+> The full illustrated build guide (shopping list ≈ RM 495, power and wiring diagrams, assembly) is
+> `docs/Raqib_Robot_Build_Guide.pdf`. Reliable budget build 2.5: the Pi on its own USB power bank, the motors on
+> 2 x 18650 (common ground L298N GND → Pi pin 9), motor speed on GPIO 13/19 (pins 33/35), no servos, no wheel encoders
+> (distance from calibrated motor time + MPU6050 heading), no gas sensor, AHT20 + BMP280, USB webcam, speaker amp on
+> the Pi audio jack. When the real robot is running, start the PC with
 > `start_backend.bat` (not `start_all.bat`, which also starts the simulated robot01), and set a
 > vision AI provider in `backend/.env` so photos are analysed.
 
@@ -36,33 +38,41 @@ Add another network later: `sudo nmcli dev wifi connect "NAME" password "PASSWOR
 python -m hwtest.i2c_scan
 ```
 
-Every expected device should show `[OK ]`: MPU6050 0x68, ADS1115 0x48 and the AHT20 0x38 + BMP280 0x77/0x76.
+Every expected device should show `[OK ]`: MPU6050 0x68 and the AHT20 0x38 + BMP280 0x77/0x76 (no ADS1115 in this build).
 If one is MISSING, check SDA/SCL, 3.3 V and the address. It also tells you that motor speed comes from GPIO 13/19
 (no PCA9685 on the budget robot).
 
-## 2. Motors and encoders. **Wheels in the air!**
+## 2. Motors. **Wheels in the air!**
 
 ```
 python -m hwtest.test_motors
 ```
 
 - Each wheel should spin in the stated direction. If not, set `invert: true` for that side.
-- Encoder ticks should increase for each wheel. If they stay at 0, check the encoder OUT pin.
+- Wheels do nothing or twitch → the common ground (L298N GND → Pi pin 9) is missing.
 - The budget robot has no servos (fixed camera), so the servo part is skipped. With the PCA9685 upgrade the servos
   sweep left/right/up/down; adjust `min_us`/`max_us` if the range is wrong.
 
-Then put the robot on the floor for **Milestone 2**:
+Then **calibrate the driving** (no encoders: the robot times its motors):
 
 ```
+python -m hwtest.test_motors --deadband     # wheels in the air: answer y when all 4 wheels turn
+python -m hwtest.test_motors --calibrate    # on the floor: drives 3 s, type the distance in cm
+```
+
+Write the printed `motor_deadband`, `min_power` and `max_speed_mps` into `config.yaml`. Then, on the floor, **Milestone 2**:
+
+```
+python -m hwtest.test_motors --straight 2   # target 1.8-2.2 m
 python -m hwtest.test_motors --straight 5
 ```
 
 Measure the sideways drift with a tape measure. The target is < 20 cm.
 - Drifts consistently to one side → tune `heading_kp`.
-- Distance is wrong → correct `wheel_diameter_m` / `encoder_ticks_per_rev` (odometry KPI ±5 %).
+- Distance is wrong → charge the motor cells and run `--calibrate` again on this floor (odometry KPI ±10 % without encoders).
 - Robot hesitates or won't turn → raise `min_power` (4WD skid steering usually needs 0.35–0.45; raise `turn_speed` to 0.6 on carpet).
 
-## 3. Ultrasonics + IMU + battery
+## 3. Ultrasonics + IMU
 
 ```
 python -m hwtest.test_sensors
@@ -75,13 +85,13 @@ python -m hwtest.test_sensors
 
 ```
 python -m hwtest.test_env                     # live values + verdicts
-python -m hwtest.test_env --calibrate-mq135   # outdoors, after 24 h burn-in -> mq135_r0
 ```
 
 Put the printed values into `config.yaml`. Check temperature and humidity against a reference
 thermometer/hygrometer (KPI: classification > 85 %). If the AHT20 reads high, it is picking up heat
-from the Pi or the MQ-135. Move it away or add a small duct. (With the BME680 upgrade, also run
-`python -m hwtest.test_env --burn-in` for its VOC baseline.)
+from the Pi. Move it away or add a small duct. Gas reads "not measured": correct, there is no gas sensor. (With the BME680 upgrade, also run
+`python -m hwtest.test_env --burn-in` for its VOC baseline; with the MQ-135 + ADS1115 upgrade,
+`python -m hwtest.test_env --calibrate-mq135` outdoors after 24 h burn-in.)
 
 ## 5. Camera, microphone, speaker
 
@@ -105,7 +115,8 @@ There is nothing to configure. Switch the robot on, wait about a minute (it says
    robot's Wi-Fi "Raqib-Robot".
 2. In the app, sign in (it finds the robot by itself, or tap **Find automatically**). Default login: admin / admin123.
 3. **More > AI settings**: paste your Gemini key once; it is saved on the robot.
-4. **More > Robot health** lists every part. A part you plug in later: tap **Re-check parts**.
+4. **More > Robot health** lists every part. *Distance measuring: not fitted* and *Battery level: not measured* are
+   correct for this build. A part you plug in later: tap **Re-check parts**.
 
 Logs on the Pi: `journalctl -u raqib-server -f` (server) and `journalctl -u inspection-robot -f` (robot program).
 Prefer the old setup with the server on a PC? Delete `~/raqib/backend` before running the installer: the robot then
@@ -126,5 +137,6 @@ Dashboard and write them into `zones:` in `config.yaml`, using the same names th
 - [ ] The STOP button in the app stops the robot (and **RESET E-STOP** is required to move again)
 - [ ] A hand placed 30 cm in front of a driving robot stops it before 15 cm (T-01)
 - [ ] Stopping the server (`sudo systemctl stop raqib-server`) stops the robot within ~10 s, and the state becomes SAFE_HOLD (T-09)
-- [ ] The battery level is shown, and you have a charged spare set of 18650 cells
+- [ ] The power bank is full (all LEDs), the motor cells are charged, and you have a charged spare pair of 18650 cells
+- [ ] Driving calibrated on this floor: `--straight 2` ends within 1.8-2.2 m
 - [ ] `JWT_SECRET` and the default passwords in `backend/.env` have been changed

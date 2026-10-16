@@ -3,7 +3,7 @@ Works for both builds: budget (AHT20, no PCA9685) and full (BME680, PCA9685, UPS
 from . import real_cfg
 
 NAMES = {0x38: "AHT20 temperature/humidity (budget build)", 0x40: "PCA9685 PWM (full build: motors + servos)",
-         0x48: "ADS1115 ADC (MQ-135 gas + battery voltage)", 0x68: "MPU6050 motion sensor",
+         0x48: "ADS1115 ADC (only if you fitted the MQ-135 gas upgrade)", 0x68: "MPU6050 motion sensor",
          0x76: "BME680 or BMP280 (climate / pressure)", 0x77: "BME680 or BMP280 (climate / pressure)"}
 
 
@@ -25,7 +25,7 @@ def main():
     print("Devices found:", " ".join(hex(a) for a in found) or "none")
     for a in found:
         print(f"  {hex(a)}  {NAMES.get(a, 'unknown device')}")
-    need = {"MPU6050 (0x68)": 0x68 in found, "ADS1115 (0x48)": 0x48 in found,
+    need = {"MPU6050 (0x68)": 0x68 in found,
             "climate sensor (AHT20 0x38 or BME680 0x76/0x77)": bool({0x38, 0x76, 0x77} & set(found))}
     print()
     for name, ok in need.items():

@@ -288,8 +288,9 @@ class SemanticMemory:
                 "embedding": f"{self.store}/{self.backend}", "took_ms": round((time.perf_counter() - t0) * 1000, 1)}
 
     # ------------------------------------------------------------------ seed
-    def seed(self, n: int = 60, zones: list[str] | None = None) -> int:
-        """Fake history so search can be tested before real inspections exist (marked seeded=True)."""
+    def seed(self, n: int = 60, zones: list[str] | None = None, gas: bool = True) -> int:
+        """Fake history so search can be tested before real inspections exist (marked seeded=True).
+        gas=False: the robot has no gas sensor, so the records carry no air-quality reading."""
         from .report import fuse
         from .schemas import VisionAnalysis
 
@@ -305,14 +306,18 @@ class SemanticMemory:
             temp = rng.uniform(27, 31) if hot else rng.uniform(17, 19.5) if cold else rng.uniform(22.5, 25.5)
             rh = rng.uniform(65, 80) if hot else rng.uniform(42, 58)
             aqi = rng.uniform(155, 240) if fumes else rng.uniform(20, 90)
-            gas = "WARNING" if fumes else "NORMAL"
+            verdict = "WARNING" if fumes else "NORMAL"
             occ = 0 if rng.random() < 0.7 else rng.randint(3, 40)
             v = VisionAnalysis(occupants=occ, lights_on=rng.random() < 0.5, projector_on=rng.random() < 0.25,
                                exit_clear=rng.random() > 0.15, extinguisher_present=rng.random() > 0.1,
                                hazardous_items=["soldering iron left on"] if fumes and rng.random() < 0.5 else [],
                                description="seeded record", confidence=0.9, provider="seed")
-            env = {"temperature_c": round(temp, 1), "humidity_pct": round(rh), "aqi": round(aqi),
-                   "aqi_label": "Unhealthy" if fumes else "Good", "gas_verdict": gas}
+            if gas:
+                env = {"temperature_c": round(temp, 1), "humidity_pct": round(rh), "aqi": round(aqi),
+                       "aqi_label": "Unhealthy" if fumes else "Good", "gas_verdict": verdict}
+            else:
+                env = {"temperature_c": round(temp, 1), "humidity_pct": round(rh), "aqi": None,
+                       "aqi_label": "Unknown", "gas_verdict": "NOT_MEASURED"}
             audio = {"label": "ac_fan" if (hot or cold) and rng.random() < 0.7 else "quiet_room",
                      "title": "", "db": round(rng.uniform(40, 70), 1)}
             z = fuse(zone, v, env, audio)

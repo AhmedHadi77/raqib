@@ -93,7 +93,7 @@ def classify(temp_c: float, rh: float, aqi: float | None, ppm: float | None, cfg
     else:
         comfort = "COMFORTABLE"
 
-    gas = "NORMAL"
+    gas = "NORMAL" if (aqi is not None or ppm is not None) else "NOT_MEASURED"   # no gas sensor fitted
     a_el, a_w, a_h = cfg.get("aqi_elevated", 100), cfg.get("aqi_warning", 150), cfg.get("aqi_hazard", 300)
     p_w, p_h = cfg.get("mq135_warning_ppm", 1000), cfg.get("mq135_hazard_ppm", 2000)
     if (aqi is not None and aqi > a_h) or (ppm is not None and ppm > p_h):

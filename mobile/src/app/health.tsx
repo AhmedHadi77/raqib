@@ -44,7 +44,7 @@ function PartRow({ part, h, full }: { part: (typeof PARTS)[number]; h?: Componen
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 15, color: p.ink }}>{part.name}</Text>
-          <Body small soft numberOfLines={open ? undefined : 1}>{h ? (ok ? h.detail || what : h.detail) : what}</Body>
+          <Body small soft numberOfLines={open ? undefined : 2}>{h ? (ok ? h.detail || what : h.detail) : what}</Body>
         </View>
         <MaterialCommunityIcons name={h == null ? 'help-circle-outline' : ok ? 'check-circle' : open ? 'chevron-up' : 'alert-circle'} size={20} color={color} />
       </View>

@@ -69,6 +69,10 @@ export default function FloorMap({ data, pose, trail, onZonePress, height: maxHe
       grid.push(<Line key={`gy${gy}`} x1={X(x0)} x2={X(x1)} y1={Y(gy)} y2={Y(gy)} stroke={p.consoleLine} strokeWidth={gy % 5 === 0 ? 1 : 0.5} opacity={0.8} />);
   }
   const pts = (trail ?? []).filter((t) => t.x != null && t.y != null).map((t) => `${X(t.x!)},${Y(t.y!)}`).join(' ');
+  // room name under its box; a big box (or one whose name would fall off the plan) gets the name inside, at the bottom
+  const bottomEdge = Y(y0) - 4;
+  const labelY = (cy: number, half: number, isHome: boolean) =>
+    isHome ? Math.min(cy + 26, bottomEdge) : cy + half + 15 <= bottomEdge || half < 18 ? cy + half + 15 : cy + half - 7;
   const statusColor = (l?: Level) => (l === 'alert' ? '#FF6B6B' : l === 'warn' ? '#FFB224' : l === 'ok' ? '#3DD598' : p.consoleSoft);
 
   let robot: React.ReactNode = null;
@@ -128,7 +132,7 @@ export default function FloorMap({ data, pose, trail, onZonePress, height: maxHe
                     fill={col} fillOpacity={st ? 0.14 : 0.04} stroke={col} strokeWidth={sel ? 2.6 : 1.5}
                     strokeDasharray={st ? undefined : '4 3'} />
                 )}
-                <SvgText x={cx} y={cy + (isHome ? 26 : half + 15)} fontSize={11.5} fontFamily={fonts.bodyStrong}
+                <SvgText x={cx} y={labelY(cy, half, isHome)} fontSize={11.5} fontFamily={fonts.bodyStrong}
                   fill={isHome ? p.consoleSoft : p.consoleInk} textAnchor="middle">
                   {isHome ? 'Dock' : ZONE_SHORT(n)}
                 </SvgText>

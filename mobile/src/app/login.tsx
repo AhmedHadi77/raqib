@@ -152,8 +152,9 @@ export default function Login() {
               </Button>
               <Button mode="outlined" icon="robot-outline" onPress={tryDemo} disabled={busy}
                 contentStyle={{ paddingVertical: 4 }}>
-                Try the demo robot (no robot needed)
+                Try the demo robot
               </Button>
+              <Body small soft style={{ textAlign: 'center', marginTop: -4 }}>No robot or server needed: it runs inside this phone.</Body>
 
               <View style={[styles.serverBox, { backgroundColor: p.sunken }]}>
                 <View style={styles.serverHead}>

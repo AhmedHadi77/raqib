@@ -88,8 +88,9 @@ export default function Home() {
           <Logo size={34} />
           <View style={{ flex: 1 }}>
             <Wordmark size={21} />
-            <Body small soft numberOfLines={1}>{site.data?.site ?? 'Facility'}</Body>
+            <Body small soft numberOfLines={1}>{demo ? 'Demo robot' : site.data?.site ?? 'Facility'}</Body>
           </View>
+          <VoiceButton size={42} disabled={!canDrive} />
           <EStopButton compact />
         </View>
 
@@ -191,8 +192,13 @@ export default function Home() {
             <Metric icon="water-percent" label="Humidity" value={e?.humidity_pct?.toFixed(0)} unit="%"
               note={e ? (e.humidity_pct > 60 ? 'Too humid' : e.humidity_pct < 40 ? 'Too dry' : 'In range') : undefined}
               level={e ? (e.humidity_pct > 60 || e.humidity_pct < 40 ? 'warn' : 'ok') : 'idle'} trend={hist.map((h) => h.humidity_pct)} />
-            <Metric icon="weather-windy" label="Air quality" value={e?.aqi != null ? Math.round(e.aqi) : null} unit="AQI" level={levelOf(e?.gas_verdict)}
-              note={e?.aqi_label} trend={hist.map((h) => h.aqi)} />
+            {e?.gas_verdict === 'NOT_MEASURED' ? (
+              <Metric icon="gauge" label="Air pressure" value={e.pressure_hpa != null ? Math.round(e.pressure_hpa) : null} unit="hPa"
+                note="No gas sensor fitted" />
+            ) : (
+              <Metric icon="weather-windy" label="Air quality" value={e?.aqi != null ? Math.round(e.aqi) : null} unit="AQI" level={levelOf(e?.gas_verdict)}
+                note={e?.aqi_label} trend={hist.map((h) => h.aqi)} />
+            )}
             <Metric icon="waveform" label="Sound" value={t?.audio?.db?.toFixed(0)} unit="dB" note={t?.audio?.title ?? 'Not sampled yet'}
               trend={hist.map((h) => h.db)} />
           </View>
@@ -228,14 +234,10 @@ export default function Home() {
         </Section>
       </Screen>
 
-      <View style={styles.fab} pointerEvents="box-none">
-        <VoiceButton disabled={!canDrive} />
-      </View>
-
       <RoomSheet zone={zone} status={zone ? (status as any)[zone] : null} canDrive={canDrive} onClose={() => setZone(null)}
         onAsk={(m) => { const z = zone; setZone(null); run(m, z); }}
         onDrive={() => { const z = zone!; setZone(null); command(`Driving to ${ZONE_LABEL(z)}`, 'go_to_zone', { zone: z }); }} />
-      <Snackbar visible={!!snack} onDismiss={() => setSnack('')} duration={3000} style={{ marginBottom: 80 }}>{snack}</Snackbar>
+      <Snackbar visible={!!snack} onDismiss={() => setSnack('')} duration={3000} style={{ marginBottom: 16 }}>{snack}</Snackbar>
     </SafeAreaView>
   );
 }
@@ -244,11 +246,11 @@ function Legend() {
   const p = usePalette();
   const items: [string, string][] = [['#3DD598', 'Clear'], ['#FFB224', 'Findings'], ['#FF6B6B', 'Urgent']];
   return (
-    <View style={{ flexDirection: 'row', gap: 10 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2 }}>
       {items.map(([c, l]) => (
         <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: c }} />
-          <Text style={{ fontFamily: fonts.body, fontSize: 11.5, color: p.consoleSoft }}>{l}</Text>
+          <Text maxFontSizeMultiplier={1.15} style={{ fontFamily: fonts.body, fontSize: 11.5, color: p.consoleSoft }}>{l}</Text>
         </View>
       ))}
     </View>
@@ -261,7 +263,7 @@ function ConsoleBtn({ icon, label, onPress, disabled }: { icon: any; label: stri
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button"
       style={({ pressed }) => [styles.cBtn, { backgroundColor: pressed ? p.primary : p.console2, borderColor: p.consoleLine, opacity: disabled ? 0.4 : 1 }]}>
       <MaterialCommunityIcons name={icon} size={20} color={p.consoleInk} />
-      <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: p.consoleInk }} numberOfLines={1}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.15} style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: p.consoleInk }} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -321,7 +323,7 @@ const styles = StyleSheet.create({
   progress: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   console: { marginTop: 18, borderRadius: 20, borderWidth: 1, padding: 12, paddingTop: 12 },
-  consoleHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingHorizontal: 4 },
+  consoleHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: 4, columnGap: 10, marginBottom: 4, paddingHorizontal: 4 },
   consoleActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
   cBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
   room: { width: 168, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 12, paddingTop: 14, gap: 3, overflow: 'hidden' },
@@ -330,6 +332,5 @@ const styles = StyleSheet.create({
   event: { flexDirection: 'row', gap: 12 },
   eventDot: { width: 10, height: 10, borderRadius: 5, marginTop: 6 },
   eventLine: { width: 2, flex: 1, marginTop: 4 },
-  fab: { position: 'absolute', bottom: 18, right: 18 },
   monBar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, padding: 14, borderRadius: 16, borderWidth: 1 },
 });

@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePalette } from '@/hooks';
 import { useAppSelector } from '@/store';
@@ -20,7 +21,7 @@ function AssistantTabButton(props: any) {
       <View style={[styles.center, { backgroundColor: BRAND.navy, borderColor: p.paper }]}>
         <MaterialCommunityIcons name={busy ? 'dots-horizontal' : 'microphone'} size={26} color={BRAND.cyan} />
       </View>
-      <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11.5, color: focused ? p.primary : p.inkSoft, marginTop: 2 }}>
+      <Text allowFontScaling={false} style={{ fontFamily: fonts.bodyMedium, fontSize: 11.5, color: focused ? p.primary : p.inkSoft, marginTop: 2 }}>
         Assistant
       </Text>
     </Pressable>
@@ -30,6 +31,9 @@ function AssistantTabButton(props: any) {
 export default function TabLayout() {
   const p = usePalette();
   const faults = useAppSelector((s) => s.robot.telemetry?.faults?.length ?? 0);
+  // Android draws the app under its navigation buttons (edge to edge): lift the bar above them
+  const insets = useSafeAreaInsets();
+  const bottom = Math.max(insets.bottom, Platform.OS === 'web' ? 6 : 8);
   const icon = (name: IconName) => ({ color, size }: { color: ColorValue; size: number }) => (
     <MaterialCommunityIcons name={name} size={size} color={color as string} />
   );
@@ -38,8 +42,11 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: p.primary,
         tabBarInactiveTintColor: p.inkSoft,
-        tabBarStyle: { backgroundColor: p.surface, borderTopColor: p.line, height: 64, paddingTop: 6 },
-        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11.5 },
+        tabBarStyle: { backgroundColor: p.surface, borderTopColor: p.line, height: 58 + bottom, paddingTop: 6, paddingBottom: bottom },
+        tabBarItemStyle: { height: 52 },
+        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11.5, marginTop: 2 },
+        tabBarLabelPosition: 'below-icon',
+        tabBarAllowFontScaling: false,
         headerStyle: { backgroundColor: p.paper },
         headerShadowVisible: false,
         headerTintColor: p.ink,
@@ -60,9 +67,9 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
+  centerWrap: { flex: 1, height: 52, alignItems: 'center', justifyContent: 'flex-start' },
   center: {
-    width: 56, height: 56, borderRadius: 28, marginTop: -22, alignItems: 'center', justifyContent: 'center', borderWidth: 4,
+    width: 54, height: 54, borderRadius: 27, marginTop: -20, alignItems: 'center', justifyContent: 'center', borderWidth: 4,
     shadowColor: '#0D1530', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
 });

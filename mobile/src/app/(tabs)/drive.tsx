@@ -205,8 +205,8 @@ export default function Drive() {
       <View style={styles.top}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.display, fontSize: 24, color: p.consoleInk, letterSpacing: -0.5 }}>Drive</Text>
-          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: p.consoleSoft }}>
-            {online ? `${STATE_LABEL[t?.state ?? ''] ?? '…'}, battery ${t?.battery?.percent != null ? Math.round(t.battery.percent) + '%' : 'on power bank'}` : 'Robot offline'}
+          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: p.consoleSoft }} numberOfLines={1}>
+            {online ? `${STATE_LABEL[t?.state ?? ''] ?? '…'} · ${t?.battery?.percent != null ? `battery ${Math.round(t.battery.percent)}%` : 'power bank'}` : 'Robot offline'}
           </Text>
         </View>
         <VoiceButton size={42} disabled={!canDrive} panelOffset={24} />
@@ -219,7 +219,7 @@ export default function Drive() {
         </View>
         <View style={wide ? { flex: 1 } : { marginTop: 16 }}>{controls}</View>
       </ScrollView>
-      <Snackbar visible={!!snack} onDismiss={() => setSnack('')} duration={2500} style={{ marginBottom: 80 }}>{snack}</Snackbar>
+      <Snackbar visible={!!snack} onDismiss={() => setSnack('')} duration={2500} style={{ marginBottom: 16 }}>{snack}</Snackbar>
     </SafeAreaView>
   );
 }

@@ -53,20 +53,20 @@ export default function History() {
       <Section
         title="Live trends"
         style={{ marginTop: 4 }}
-        action={
-          <SegmentedButtons
-            density="small"
-            value={minutes}
-            onValueChange={setMinutes}
-            style={{ width: 200 }}
-            buttons={[{ value: '15', label: '15m' }, { value: '30', label: '30m' }, { value: '60', label: '1h' }]}
-          />
-        }
       >
+        <SegmentedButtons
+          density="small"
+          value={minutes}
+          onValueChange={setMinutes}
+          style={{ marginBottom: 12 }}
+          buttons={[{ value: '15', label: '15 min' }, { value: '30', label: '30 min' }, { value: '60', label: '1 hour' }]}
+        />
         <Card style={{ gap: 18 }}>
           <TrendChart title="Temperature" unit="°C" points={series('temperature_c')} color={p.danger} band={[22, 26]} />
           <TrendChart title="Humidity" unit="%" points={series('humidity_pct')} color={p.info} band={[40, 60]} decimals={0} />
-          <TrendChart title="Air quality index" unit="AQI" points={series('aqi')} color={p.amber} band={[0, 100]} decimals={0} />
+          {pts.some((h) => h.aqi != null) ? (
+            <TrendChart title="Air quality index" unit="AQI" points={series('aqi')} color={p.amber} band={[0, 100]} decimals={0} />
+          ) : null}
           <TrendChart title="Sound level" unit="dB" points={series('db')} color={p.primary} decimals={0} />
           <Body small soft>
             Values follow the robot as it moves, so a jump usually means it entered another room. Green bands show the comfort targets.
@@ -76,7 +76,7 @@ export default function History() {
 
       <Section title="Ask about past inspections">
         <Searchbar
-          placeholder="e.g. rooms with poor air last week"
+          placeholder="e.g. rooms that were too hot last week"
           value={q}
           onChangeText={setQ}
           onSubmitEditing={() => search()}

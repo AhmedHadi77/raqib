@@ -427,7 +427,7 @@ async function chat(message: string): Promise<ChatResponse> {
     return reply(said.join(' '), steps, t0);
   }
   if (/(battery|status|where are you|how are you)/.test(m)) {
-    return reply(`I'm in ${nice(zoneAt())}, everything working (the Pi runs on a power bank: check its LEDs for the charge). (Demo robot inside this phone.)`, [], t0);
+    return reply(`I'm in ${nice(zoneAt())}, everything working (the ESP32 runs on a power bank: check its LEDs for the charge). (Demo robot inside this phone.)`, [], t0);
   }
   return reply('In the demo I understand: "inspect the IoT lab", "patrol all rooms", "check the aircon in hall B", "go to lecture hall A", '
     + '"move forward 1 meter", "turn left", "what do you see", "what did you find", "who is talking", "monitor the exam" and "battery".', [], t0);

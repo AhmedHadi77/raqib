@@ -135,12 +135,12 @@ def test_audio_devices_are_picked_for_the_budget_build(monkeypatch):
     assert real._pick_playback("auto") == "plughw:CARD=Device"
 
 
-def test_simulator_imitates_the_budget_robot_by_default():
+def test_simulator_imitates_the_budget_robot():
     """sim_build: budget - fixed camera, AHT20 + BMP280, no gas sensor, no encoders, no battery gauge (power bank)."""
     from robot.app import RobotApp
     from robot.config import load_config
 
-    app = RobotApp(load_config(), connect_mqtt=False)
+    app = RobotApp(load_config(overrides={"sim_build": "budget"}), connect_mqtt=False)
     app.safety.cloud_timeout = 1e9
     try:
         info = app.info()
@@ -270,8 +270,8 @@ def test_sonars_ping_one_after_another_with_a_gap():
         Device.pin_factory = None
 
 
-def test_wiring_bench_reliable_build():
-    """Bench: power bank -> Pi; the motors need their own battery AND the common ground; webcam = camera + mic."""
+def test_wiring_bench_esp32_build():
+    """Bench (ESP32): power bank -> XIAO; the DRV8833 needs the motor battery AND the common ground; Sense board = camera + mic."""
     from robot.hal.harness import evaluate
     from robot.wiring_spec import PARTS
 
@@ -280,18 +280,22 @@ def test_wiring_bench_reliable_build():
         for pin in p["pins"]:
             s = pin["spec"]
             good[f"{p['id']}.{pin['id']}"] = s.get("ext") or (f"pin:{s['pin']}" if "pin" in s else
-                                                               {"p5": "pin:2", "p33": "pin:1", "gnd": "pin:6"}[s["cls"]])
+                                                               {"p5": "pin:2", "p33": "pin:6", "gnd": "pin:4"}[s["cls"]])
+    assert len(good) == 24
     r = evaluate(good)
     assert r["drivable"] and all(v["ok"] for v in r["health"].values()), r["health"]
-    assert {p["id"] for p in PARTS} >= {"pbank", "l298", "motors", "aht", "cam", "spk"}
-    assert not {"enc", "ads", "mq", "batdiv", "buck"} & {p["id"] for p in PARTS}
+    assert {p["id"] for p in PARTS} == {"pbank", "drv", "motors", "us", "imu", "aht", "sense"}
     r = evaluate({k: v for k, v in good.items() if k != "pbank.usb"})
     assert not r["health"]["power"]["ok"] and not r["drivable"]
-    r = evaluate({k: v for k, v in good.items() if k != "l298.gndpi"})
+    r = evaluate({k: v for k, v in good.items() if k != "drv.gndx"})
     assert not r["health"]["motors"]["ok"] and "ground" in r["health"]["motors"]["detail"]
-    r = evaluate({k: v for k, v in good.items() if k != "cam.usb"})
+    r = evaluate({k: v for k, v in good.items() if k != "sense.b2b"})
     assert not r["health"]["camera"]["ok"] and not r["health"]["microphone"]["ok"]
-    r = evaluate(dict(good, **{"l298.ena": "pin:35", "l298.enb": "pin:33"}))
+    r = evaluate(dict(good, **{"us.trig": "pin:14", "us.echo": "pin:13"}))           # TRIG / ECHO swapped
+    assert not r["health"]["ultrasonic"]["ok"] and not r["drivable"]
+    r = evaluate(dict(good, **{"us.vcc": "pin:2"}))                                 # HC-SR04P on 5 V
+    assert r["effects"]["warnings"] and "D7" in r["effects"]["warnings"][0]
+    r = evaluate(dict(good, **{"drv.vm": "pin:6"}))                                 # motor power from the 3V3 pin
     assert not r["health"]["motors"]["ok"]
-    r = evaluate(dict(good, **{"l298.12v": "pin:2"}))
-    assert r["effects"]["shorts"] and "7.4 V" in r["effects"]["shorts"][0]
+    r = evaluate(dict(good, **{"imu.sda": "pin:11", "imu.scl": "pin:9"}))
+    assert not r["health"]["imu"]["ok"] and "swapped" in r["health"]["imu"]["detail"]

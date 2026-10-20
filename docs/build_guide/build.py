@@ -1,9 +1,10 @@
-"""Builds docs/Raqib_Robot_Build_Guide.pdf: shopping list, every part pictured, wiring diagrams, assembly steps.
+"""Builds docs/Raqib_Robot_Build_Guide.pdf for the ESP32 robot 3.0: parts, pictures, wiring, steps, tests.
 
     python docs/build_guide/build.py        (needs Playwright + Chromium for the HTML -> PDF step)
 """
 from __future__ import annotations
 
+import base64
 import subprocess
 import sys
 from html import escape
@@ -11,121 +12,96 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import diagrams as D  # noqa: E402
+import esp32_figs as F  # noqa: E402
 from draw import W  # noqa: E402
 
 OUT_HTML = HERE / "guide.html"
 OUT_PDF = HERE.parent / "Raqib_Robot_Build_Guide.pdf"
+HERO = HERE.parent / "robot_renders" / "hero.png"
 
 # ----------------------------------------------------------------------------------------------- shopping list
 BOM = [
-    ("The brain", [
-        ("Raspberry Pi 4 Model B, 2 GB", 1, 240, "Runs the robot program and its own server. 2 GB is enough: the AI runs in the cloud"),
-        ("microSD card 16 GB, A1 / Class 10", 1, 12, "Holds Raspberry Pi OS and the robot software"),
-        ("Aluminium heatsink set for the Pi 4", 1, 4, "Keeps the Pi from slowing down when it gets warm"),
+    ("The robot's body (one small board does Wi-Fi, camera and microphone)", [
+        ("Seeed XIAO ESP32S3 Sense (camera + microphone board included)", 1, 75,
+         "Drives the motors, reads the sensors, streams the camera and microphone to the PC over Wi-Fi"),
+        ("USB-C data cable (a phone cable that charges AND transfers files)", 1, 6, "To put the firmware on the XIAO, then to power it"),
     ]),
-    ("Power (two separate batteries: the most reliable choice)", [
-        ("USB power bank 10,000 mAh, 5 V 3 A output, with its USB-C cable", 1, 40,
-         "Powers the Pi only. Motor starts can never reset the Pi, and no voltage to adjust"),
+    ("Power (two separate batteries: motor starts can never restart the ESP32)", [
+        ("Slim USB power bank 5,000 mAh, 2 A or more", 1, 25, "Powers the XIAO, its camera and the sensors"),
         ("18650 Li-ion cells, flat top, 2500-3000 mAh", 2, 15, "Motors only. Known brands; avoid fake '9900 mAh' cells"),
         ("2 x 18650 battery holder with on/off switch and leads", 1, 6, "7.4 V motor pack; its switch is the motor power switch"),
         ("2-slot USB 18650 charger", 1, 12, "Charges the two motor cells"),
     ]),
     ("Moving", [
-        ("4WD smart car chassis kit: 2 acrylic decks, 4 TT motors (3-6 V), 4 wheels, brass standoffs, screws", 1, 40,
-         "The body: four driven wheels (skid steering)"),
-        ("L298N dual H-bridge motor driver", 1, 9, "Turns the Pi's small signals into motor power"),
+        ("2WD smart car chassis kit: acrylic deck, 2 TT motors (3-6 V), 2 wheels, caster wheel, screws", 1, 25,
+         "The body: two driven wheels and a caster; turns on the spot"),
+        ("DRV8833 dual motor driver module", 1, 7, "Turns the ESP32's 3.3 V signals into motor power; efficient and tiny"),
     ]),
     ("Sensing", [
-        ("HC-SR04 ultrasonic distance sensor", 3, 4, "Left, centre, right: stops before obstacles and steers round them"),
+        ("HC-SR04P ultrasonic distance sensor (3.3 V version)", 2, 5, "One at the front + one spare. The 'P' version needs no resistors"),
         ("MPU6050 motion sensor (GY-521 board)", 1, 8, "Knows how far the robot has turned and keeps it straight"),
         ("AHT20 + BMP280 combo board", 1, 10, "Temperature, humidity and air pressure"),
     ]),
-    ("Camera and sound", [
-        ("USB webcam 720p with built-in microphone", 1, 30, "Photos, live video and hearing in one part"),
-        ("PAM8403 amplifier board", 1, 4, "Makes the voice loud enough"),
-        ("Speaker 3 W 4 Ω, about 40 mm", 1, 5, "The robot's voice"),
-        ("3.5 mm male audio cable (you will cut one end)", 1, 3, "Pi audio jack → amplifier"),
-    ]),
-    ("Wiring and mounting", [
-        ("Resistors: 1 kΩ x 3, 2 kΩ x 3", 1, 3, "Echo dividers: protect the Pi from the sonars' 5 V"),
-        ("Perfboard / stripboard about 7 x 9 cm", 1, 3, "Your 'hub board'"),
-        ("Jumper wires: F-F and M-F, 40 of each", 1, 8, "Most connections plug in, no soldering"),
-        ("Male + female pin header strips", 1, 3, "Plug-in points on the hub board"),
-        ("22 AWG wire, red + black, 1 m each", 1, 5, "Motor and battery wiring"),
-        ("M2.5 screws + nylon washers (the kit already has the deck standoffs)", 1, 4, "Raspberry Pi and board mounting"),
-        ("Zip ties, double-sided foam tape, heat-shrink", 1, 4, "Tidy, safe, nothing rattles loose"),
+    ("Wiring and mounting (no soldered hub board: everything plugs into a breadboard)", [
+        ("Half-size breadboard, 400 points, self-adhesive", 1, 5, "The robot's wiring hub: its rails are 3.3 V and GND"),
+        ("Jumper wires: male-male and female-male, 40 of each", 1, 8, "Every connection plugs in"),
+        ("Foam tape, zip ties, a small plastic or card bracket for the XIAO", 1, 5, "Holds the XIAO upright at the front"),
     ]),
 ]
 TOOLS = [
-    ("Soldering iron with solder and stand", 50, "Motor leads, hub board, header pins"),
-    ("Digital multimeter", 40, "Check every voltage BEFORE connecting a board"),
-    ("Small screwdriver set (Phillips + flat)", 15, "Screw terminals and chassis"),
-    ("Wire stripper / side cutter", 15, "Clean wire ends"),
-    ("Hot glue gun", 20, "Fix cables and the sonars"),
-    ("Tape measure (3 m or more)", 10, "Calibrating the driving distance (step 10) and measuring the rooms"),
+    ("Your laptop / PC (Windows)", 0, "The robot's brain: runs the server, the AI and the robot program"),
+    ("Soldering iron with solder", 50, "Only for header pins: XIAO (14), MPU6050 (8), AHT20 (4), DRV8833 if not pre-soldered"),
+    ("Small screwdriver set", 15, "Chassis and battery holder"),
+    ("Tape measure (3 m)", 10, "Calibrating the driving and measuring the rooms"),
+    ("Multimeter (optional)", 40, "Checks the motor battery voltage and finds loose wires"),
 ]
 UPGRADES = [
-    ("Gas / CO2 level", "MQ-135 + ADS1115 + 10k/20k resistors", "≈ 20",
-     "ADS1115 on the I²C rails, MQ-135 AO through the divider to A0; set gas_sensor: mq135. The app shows gas readings again."),
-    ("Exact distances", "2 slot encoders (LM393) + 20-slot discs", "≈ 8",
-     "Discs on the front motors, D0 → pins 29 / 31, VCC 3.3 V; set encoders: true. Distance is then counted, not timed."),
-    ("Look around without turning", "PCA9685 + 2 SG90 servos + pan/tilt bracket", "≈ 40",
-     "PCA9685 on the I²C rails, its ch0/ch1 → ENA/ENB (instead of pins 33/35), servos on ch14/ch15, webcam on the bracket."),
-    ("Sharper photos", "Pi Camera OV5647 (≈ RM 35) or v2 (≈ RM 120) + long ribbon", "35-128",
-     "Ribbon into the CAMERA port. The robot tries the ribbon camera first, then the webcam."),
-    ("Air quality (VOC)", "BME680 board", "≈ 45", "Replaces the AHT20 on the same 4 wires."),
-    ("Battery % in the app", "UPS module 3S + 3 more 18650 cells (instead of the power bank)", "≈ 175",
-     "Pi on the UPS; its battery gauge joins the I²C rails and the app shows the battery level."),
-    ("Smoother video", "Raspberry Pi 4, 4 GB instead of 2 GB", "≈ 50", "Same wiring."),
+    ("Longer patrols", "10,000 mAh power bank", "≈ 15 more", "Same USB-C cable; the robot lasts about twice as long."),
+    ("Better grip on carpet", "4WD chassis kit", "≈ 15 more", "The DRV8833 drives both motors of a side together (joined red-red, black-black)."),
+    ("The bigger Raspberry Pi robot", "Pi 4 + servos + gas sensor", "≈ 270 more",
+     "Set hardware: board: pi in edge/config.yaml. The same server, app and AI work with it."),
 ]
 
 # ----------------------------------------------------------------------------------------------- parts
 CARDS = [
-    ("pi", "Raspberry Pi 4", "The robot's computer: drives, senses, runs its own server for the phone.",
-     "40-pin GPIO header (top edge) · USB-C power · USB ports for the webcam · 3.5 mm audio jack for the speaker",
-     "2 GB is enough. Put the microSD card in the slot underneath on the short edge."),
-    ("pbank", "USB power bank (Pi battery)", "Powers the Raspberry Pi, and nothing else.",
-     "USB-C (or USB-A) output → its own cable → the Pi's USB-C power socket",
-     "Choose one that says 5 V 3 A (15 W) on the output. Its LEDs show how full it is; charge it like a phone."),
-    ("bat2", "Motor battery: 2 x 18650", "Powers the motors only, through the L298N.",
-     "Red + → L298N +12V · black − → L298N GND",
-     "7.4 V nominal, 8.4 V full, about 6.6 V empty. Its switch turns the motors on and off."),
-    ("chassis", "4WD chassis kit", "Two acrylic decks, four TT gear motors, four wheels and brass standoffs.",
-     "4 motors under the bottom deck · second deck on the standoffs",
-     "Check all 4 motors and wheels are in the box before you start."),
-    ("motor", "TT gear motor", "3-6 V geared motor; two per side, wired together.",
-     "2 solder tabs per motor (red / black wires)",
-     "Solder wires before you mount the motors; it is hard afterwards."),
-    ("l298n", "L298N motor driver", "Switches motor-battery power to the motors forwards or backwards.",
-     "+12V / GND from the motor battery · GND also → Pi pin 9 · OUT1/OUT2 left pair · OUT3/OUT4 right pair · IN1-IN4, ENA/ENB from the Pi",
-     "Remove the ENA and ENB jumpers. Keep the 5V-EN jumper. The GND wire to the Pi is essential."),
-    ("hc", "HC-SR04 ultrasonic", "Measures distance with sound, 2 cm to 4 m.",
-     "VCC 5V · Trig (from Pi) · Echo (5 V out! needs a divider) · Gnd",
-     "Buy 4: one spare. They sometimes arrive dead."),
+    ("xiao", "XIAO ESP32S3 Sense", "The robot's body: Wi-Fi, a 240 MHz dual-core ESP32-S3, 8 MB memory, plus the Sense board with camera and microphone.",
+     "D0-D3 motors · D4/D5 I²C (SDA/SCL) · D6/D7 distance sensor · 3V3 and GND to the breadboard rails · USB-C power",
+     "Press the Sense board on until it clicks, and click the camera ribbon into its socket BEFORE you power it."),
+    ("pbank", "USB power bank (ESP32 battery)", "Powers the XIAO, its camera and the sensors, and nothing else.",
+     "USB-C (or USB-A) output → its cable → the XIAO's USB-C",
+     "Any 5,000 mAh bank works. Its LEDs show how full it is; charge it like a phone."),
+    ("bat2", "Motor battery: 2 x 18650", "Powers the two motors only, through the DRV8833.",
+     "Red + → DRV8833 VM · black − → DRV8833 GND",
+     "7.4 V nominal, 8.4 V full. Never more than 2 cells: the DRV8833 allows 10.8 V at most."),
+    ("chassis", "2WD chassis kit", "One acrylic deck, two TT gear motors with wheels, and a caster wheel at the back.",
+     "2 motors at the front · caster at the back · battery holder under the deck",
+     "Two driven wheels turn on the spot exactly; the gyro measures every turn."),
+    ("motor", "TT gear motor (x2)", "3-6 V geared motor; one per side.",
+     "2 solder tabs or 2 wires per motor → AOUT1/AOUT2 (left) and BOUT1/BOUT2 (right)",
+     "Many kits come with the wires already soldered on."),
+    ("drv", "DRV8833 motor driver", "Switches motor-battery power to the motors, forwards or backwards, at the speed the ESP32 asks.",
+     "AIN1/AIN2/BIN1/BIN2 ← D0/D1/D2/D3 · VM/GND ← motor battery · GND also → breadboard GND rail · AOUT/BOUT → motors",
+     "If your board has an EEP (or SLP) pin, connect it to 3V3, or the motors stay asleep."),
+    ("hc", "HC-SR04P (3.3 V)", "Measures distance with sound, 2 cm to 4 m: the robot stops before obstacles.",
+     "VCC 3V3 · TRIG ← D6 · ECHO → D7 · GND",
+     "Buy the 'P' (3.3 V) version, or the RCWL-1601. The old 5 V HC-SR04 would need resistors."),
     ("imu", "MPU6050 (GY-521)", "Gyroscope + accelerometer: the robot's sense of turning.",
-     "VCC · GND · SCL · SDA (the others are not used)",
-     "Mount it flat, near the middle of the chassis, with foam tape. Cheap clones work too."),
+     "VCC 3V3 · GND · SCL ← D5 · SDA ← D4 (the others stay free)",
+     "Mount it flat. Keep the robot still for 2 s after switching on: it learns the gyro's offset."),
     ("aht", "AHT20 + BMP280", "Temperature and humidity (AHT20) plus air pressure (BMP280) on one board.",
-     "VIN · GND · SCL · SDA",
-     "Keep it away from the Pi: it is warm."),
-    ("webcam", "USB webcam with microphone", "The robot's eyes and ears: photos, live video and sound.",
-     "Any USB port (a blue USB 3 port is best)",
-     "Choose one sold as 'plug and play / UVC' with a built-in microphone."),
-    ("pam", "PAM8403 amplifier", "Small 3 W amplifier for the speaker.", "5V/GND power · L G R input from the Pi's audio jack · L+ L− output",
-     "Use only the left channel (L+ / L−)."),
-    ("spk", "Speaker 3 W 4 Ω", "The robot's voice.", "2 wires to L+ and L−", "Face it outwards at the back of the top deck."),
-    ("res2", "Resistors", "Three voltage dividers: they turn the sonars' 5 V Echo into a safe 3.3 V.", "No polarity: either way round",
-     "No 2 kΩ? Two 1 kΩ in series make 2 kΩ."),
-    ("wires", "Jumper wires", "Plug-in connections.", "F = socket (fits on a pin) · M = pin", "Use colours: red 5 V, orange 3.3 V, black GND."),
-    ("hub", "Hub board (you make it)", "One place where power, the I²C bus and the sonar dividers meet.",
-     "5V · 3V3 · GND · SDA · SCL rails + 3 dividers", "Step 5 shows how to build it."),
-    ("standoff", "Standoffs and screws", "Hold the second deck and the boards.", "M3 for the deck, M2.5 for the Pi", "Nylon washers stop shorts under boards."),
-    ("tools", "Tools", "What you need on the desk (borrow them from the lab).", "Soldering iron, multimeter, screwdrivers, stripper, hot glue", "Measure, then connect. Always."),
+     "VIN 3V3 · GND · SCL ← D5 · SDA ← D4",
+     "Shares the four I²C wires with the MPU6050. Keep it away from the warm XIAO."),
+    ("breadboard", "Half breadboard (the wiring hub)", "Every part plugs into it. Its long side rails carry 3.3 V and GND to all sensors.",
+     "+ rail = 3V3 from the XIAO · − rail = GND (XIAO, DRV8833 and sensors)",
+     "Join the top and bottom rails with two short wires, so both sides have 3V3 and GND."),
+    ("wires", "Jumper wires", "Plug-in connections.", "M = pin end · F = socket end",
+     "Use colours: orange 3.3 V, black GND, blue SDA, yellow SCL."),
+    ("tools", "Tools", "What you need on the desk.", "Soldering iron (header pins only), screwdriver, tape measure",
+     "Solder the header pins straight: push them into the breadboard first, then solder."),
 ]
 
 
-def bom_table() -> str:
+def bom_table() -> tuple[str, int]:
     rows, total, n = [], 0, 0
     for group, items in BOM:
         rows.append(f'<tr class="grp"><td colspan="5">{escape(group)}</td></tr>')
@@ -134,20 +110,21 @@ def bom_table() -> str:
             total += qty * price
             rows.append(f"<tr><td class='num'>{n}</td><td><b>{escape(name)}</b><div class='why'>{escape(why)}</div></td>"
                         f"<td class='c'>{qty}</td><td class='r'>{price}</td><td class='r'>{qty * price}</td></tr>")
-    rows.append(f"<tr class='tot'><td></td><td>Total for the robot (estimate, under RM 500)</td><td></td><td></td><td class='r'>≈ {total}</td></tr>")
+    rows.append(f"<tr class='tot'><td></td><td>Total for the robot (estimate)</td><td></td><td></td><td class='r'>≈ {total}</td></tr>")
     return ("<table class='bom'><thead><tr><th>#</th><th>Part</th><th>Qty</th><th>RM each</th><th>RM</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table>"), total
 
 
 def tools_table() -> str:
-    rows = "".join(f"<tr><td><b>{escape(t)}</b><div class='why'>{escape(w)}</div></td><td class='r'>{p}</td></tr>" for t, p, w in TOOLS)
+    rows = "".join(f"<tr><td><b>{escape(t)}</b><div class='why'>{escape(w)}</div></td><td class='r'>{p or 'you have it'}</td></tr>"
+                   for t, p, w in TOOLS)
     return f"<table class='bom tools'><thead><tr><th>Tool</th><th>RM</th></tr></thead><tbody>{rows}</tbody></table>"
 
 
 def cards_html() -> str:
     out = []
     for key, title, what, pins, tip in CARDS:
-        out.append(f"""<div class="card"><div class="pic">{D.fig_component(key)}</div>
+        out.append(f"""<div class="card"><div class="pic">{F.card(key)}</div>
 <h4>{escape(title)}</h4><p>{escape(what)}</p><p class="pins"><b>Connections:</b> {escape(pins)}</p><p class="tip">💡 {escape(tip)}</p></div>""")
     return '<div class="cards">' + "".join(out) + "</div>"
 
@@ -176,282 +153,261 @@ def upgrades_table() -> str:
     return f"<table class='bom'><thead><tr><th>You want</th><th>Add</th><th>Extra RM</th></tr></thead><tbody>{rows}</tbody></table>"
 
 
+def hero_img() -> str:
+    if HERO.exists():
+        b64 = base64.b64encode(HERO.read_bytes()).decode()
+        return f'<img src="data:image/png;base64,{b64}" style="width:150mm;border-radius:10px">'
+    return F.fig_system()
+
+
 def build_html() -> str:
     bom, total = bom_table()
-    assert total <= 500, total
     legend = "".join(f'<span><i style="background:{c}"></i>{t}</span>' for c, t in (
-        (W["5v"], "5 V"), (W["3v3"], "3.3 V"), (W["gnd"], "GND"), (W["sda"], "SDA"), (W["scl"], "SCL"),
-        (W["bat"], "battery +"), (W["mot"], "motor"), (W["pwm"], "PWM"), (W["sig1"], "signal")))
-    css = (HERE / "style.css").read_text()
+        (W["3v3"], "3.3 V"), (W["gnd"], "GND"), (W["bat"], "motor battery +"), (W["sda"], "SDA"), (W["scl"], "SCL"),
+        ("#1e9e55", "left motor"), ("#8a55e8", "right motor"), (W["mot"], "motor wires"), ("#e0458b", "TRIG"), ("#0ea5c6", "ECHO")))
+    css = (HERE / "style.css").read_text() + ".cover .coverart img{display:block}"
     H = []
     # ---------------------------------------------------------------- cover
     H.append(f"""<section class="cover">
-<div class="kicker">RAQIB · AI INSPECTION ROBOT · RELIABLE BUDGET EDITION</div>
+<div class="kicker">RAQIB · AI INSPECTION ROBOT · ESP32 EDITION</div>
 <h1>Build the robot</h1>
-<p class="sub">Under RM 500: what to buy, every part pictured and explained, how to wire each sensor, and how to put the robot together, step by step.</p>
-<div class="coverart">{D.fig_cover_robot()}</div>
+<p class="sub">About RM {total}: a 2WD robot with one small ESP32 board for its body and your laptop as its brain.
+Every part pictured, every wire shown, a test after every step.</p>
+<div class="coverart">{hero_img()}</div>
 <div class="covermeta"><div><b>Ahmed Mahram Saeed Saeed Hadi</b><br>Final-year IoT project · UNISIRAJ</div>
-<div style="text-align:right">Guide version 2.5 · October 2026<br>Matches the Raqib software 2.5 · parts ≈ RM {total}</div></div>
+<div style="text-align:right">Guide version 3.0 · October 2026<br>Matches the Raqib software 3.0 · parts ≈ RM {total}</div></div>
 </section>""")
     # ---------------------------------------------------------------- contents
     H.append("""<section class="page toc"><h2>Inside this guide</h2>
 <ol class="tocl">
-<li><b>How the robot works</b> - the parts and how they talk to each other</li>
-<li><b>Shopping list</b> - every part, how many, why, and an estimated price (under RM 500)</li>
+<li><b>How the robot works</b> - the body, the brain and what each part does</li>
+<li><b>Shopping list</b> - every part, how many, why, and an estimated price</li>
 <li><b>Meet the parts</b> - a picture of each part and the pins you will use</li>
-<li><b>Safety first</b> - the battery, voltages and moving wheels</li>
-<li><b>The pin map</b> - every Raspberry Pi pin the robot uses</li>
-<li><b>Build it in 11 steps</b> - assembly, wiring and calibration, one part at a time, with a test after each</li>
+<li><b>Safety first</b> - batteries, 3.3 V pins and moving wheels</li>
+<li><b>The pin map</b> - the 8 XIAO pins the robot uses</li>
+<li><b>Build it in 11 steps</b> - from the firmware to the first patrol, with a test after each step</li>
 <li><b>Troubleshooting</b> - what to do when something does not answer</li>
 <li><b>Final checklist</b> - before the first demo</li>
-<li><b>Upgrades later</b> - parts you can add when you have more budget</li>
 </ol>
-<div class="note"><b>The golden rule:</b> wire one part, test it, then add the next. When something does not work, you know it is the
-part you just added. Every step ends with a check box list and a test command.</div>
+<div class="note"><b>The golden rule:</b> wire one part, test it, then add the next. The robot has its own test page
+(<code>http://raqib.local</code>) showing the camera and every sensor live, so you can test each step with just a phone.</div>
 <div class="note"><b>Wire colours used in every diagram</b><div class="legend">""" + legend + """</div>
 Use the same colours for your real jumper wires where you can: it makes mistakes easy to spot.</div>
-<div class="note"><b>Practise first, for free:</b> the Wokwi picture guide lets you wire most of these sensors in a browser
-simulator, and the phone app's <i>Try the demo robot</i> button shows what the finished robot does.</div>
+<div class="note"><b>Try it before you buy:</b> <code>start_esp32_emulator.bat</code> runs a pretend ESP32 robot on your PC,
+and the app's <i>Try the demo robot</i> works with no PC at all. The Wiring Bench lets you wire the XIAO virtually.</div>
 </section>""")
     # ---------------------------------------------------------------- 1 overview
     H.append(f"""<section class="page"><h2 class="sec"><span>1</span>How the robot works</h2>
-<p>The Raspberry Pi 4 is the brain. It runs the robot program and also its own small server, so the phone app talks
-straight to the robot over Wi-Fi: no laptop. Two batteries keep it reliable: a USB power bank feeds only the Pi, and a
-2 x 18650 pack feeds only the motors, so a motor start can never restart the Pi. A hand-made <b>hub board</b> shares power and the I²C bus with the sensors, and each sensor group has one job.</p>
-{figure(D.fig_overview(), "Figure 1 - the five groups of parts around the Raspberry Pi.")}
-<div class="two"><div><h3>Two kinds of connection</h3>
-<p><b>I²C bus</b> (2 wires, SDA + SCL): two boards share it, each with its own address -
-MPU6050 0x68, AHT20 0x38 + BMP280 0x77.</p>
-<p><b>GPIO pins</b>: one wire per signal - motor direction and speed, sonar trigger and echo.</p></div>
-<div><h3>Two voltages</h3>
-<p><b>5 V</b> for the sonars and the amplifier.</p>
-<p><b>3.3 V</b> for everything that talks to the Pi. A Pi pin must <b>never</b> see 5 V: the voltage
-dividers on the hub board take care of the sonars' 5 V Echo outputs.</p></div></div>
-<div class="note"><b>Built to work first time.</b> This build leaves out the parts that most often cause trouble in a
-first robot: the 5 V converter that must be adjusted by hand, wheel encoders, the gas sensor and its ADC. Distance comes from
-motor time × a speed you calibrate once (step 10), turns from the MPU6050. All of them can be added later (section 9).</div>
-<div class="note"><b>The camera does not move.</b> Instead of servos, the robot turns its whole body to look left or right
-(the app's <i>Drive → Camera</i> pad works the same), and turns back before it drives on. This saves about RM 40.</div>
+<p>The robot is split in two. The <b>body</b> is one thumb-size board, the <b>XIAO ESP32S3 Sense</b>: it drives the two motors,
+reads the sensors and sends its camera picture and microphone sound over Wi-Fi. The <b>brain</b> is your laptop: it runs the
+Raqib server, the AI and the robot program that plans routes, checks photos and writes reports. The phone app talks to the brain.</p>
+{figure(F.fig_system(), "Figure 1 - phone, PC (brain) and robot (body) on the same Wi-Fi.")}
+<div class="two"><div><h3>What it does</h3>
+<p><b>Energy and comfort patrol:</b> visits each room, measures temperature, humidity and pressure, and uses the camera + AI to
+spot lights or the AC left on in an empty room.</p>
+<p><b>Live video and manual drive</b> from the phone.</p>
+<p><b>Exam monitor:</b> patrols the hall, spots phones and talking, and sends you a photo, so you can go over.</p></div>
+<div><h3>Why it is easy and reliable</h3>
+<p>Only 8 signal wires. Everything is 3.3 V, so no resistors and no voltage to adjust. Two batteries: motors can never reset the
+ESP32. The robot stops by itself when Wi-Fi drops (0.6 s) or something is closer than 15 cm, and it turns using its own gyro.</p></div></div>
+<div class="note"><b>Honest limits:</b> the PC must be on (the robot has no brain of its own); the microphone hears all round, so
+it hears talking but cannot point at the talker; there is no speaker, so warnings go to your phone; and the camera sits low
+(about 15 cm), so it sees faces and laps, not papers lying on desks.</div>
 </section>""")
     # ---------------------------------------------------------------- 2 shopping
     H.append(f"""<section class="page"><h2 class="sec"><span>2</span>Shopping list</h2>
-<p>Prices are <b>estimates in Malaysian ringgit</b> from typical Malaysian online electronics shops (Cytron, Techmakers,
-Shopee / Lazada sellers) in 2026. Check current prices and stock before you buy; shop around and the total can drop further.</p>
+<p>Prices are <b>estimates in Malaysian ringgit</b> from typical Malaysian electronics shops (Cytron, Shopee / Lazada sellers)
+in 2026. Check current prices and stock before you buy.</p>
 {bom}
-</section>
-<section class="page"><h3>Tools (borrow them from the lab: not counted in the RM {total})</h3>{tools_table()}
+<h3>Tools (not counted in the RM {total})</h3>{tools_table()}
 <div class="note"><b>Buying tips</b><ul>
-<li><b>Save more:</b> a used Raspberry Pi 4 (2 GB or 4 GB) often sells for RM 150-200. Ask your department too: many labs lend Pis to final-year students.</li>
-<li><b>18650 cells:</b> buy known brands from a trusted seller. Real cells are 2500-3500 mAh; anything claiming
-"9900 mAh" is fake and unsafe. Flat-top cells fit most holders.</li>
-<li>Check the <b>chassis kit</b> photo: 4 TT motors, 4 wheels, 2 decks and standoffs.</li>
-<li><b>Power bank:</b> it must say <b>5 V 3 A</b> (or 15 W or more) on the output. 2 A banks make the Pi show low-voltage warnings.
-Some banks switch off when little current flows; the Pi draws enough, so this is not a problem.</li>
-<li><b>HC-SR04:</b> buy one spare (RM 4): it is the part that most often arrives dead.</li>
-<li><b>Webcam:</b> any small UVC "plug and play" USB webcam with a built-in microphone works; the robot finds it by itself.</li>
-<li>No 2 kΩ resistors? Two 1 kΩ in series make 2 kΩ.</li>
-<li>Have a phone charger with a USB-C cable? Use it to power the Pi on your desk while you install the software, and save the power bank's charge.</li>
+<li><b>XIAO ESP32S3 <u>Sense</u></b>: the plain XIAO ESP32S3 has no camera or microphone. Some shops sell it with the header pins already soldered.</li>
+<li><b>HC-SR04P</b> (or RCWL-1601) works on 3.3 V. The ordinary HC-SR04 is a 5 V part: do not use it here.</li>
+<li><b>18650 cells:</b> buy known brands from a trusted seller. Real cells are 2500-3500 mAh.</li>
+<li><b>USB-C cable:</b> some cheap cables only charge. If the PC does not see the XIAO, try another cable.</li>
 </ul></div>
-<div class="note"><b>Budget:</b> about <b>RM {total:,}</b> for the robot. Nothing in the app is lost: the same software runs
-this build and the bigger one, and finds by itself which parts you fitted. See <i>Upgrades later</i> at the end.</div>
 </section>""")
     # ---------------------------------------------------------------- 3 parts
     H.append(f"""<section class="page"><h2 class="sec"><span>3</span>Meet the parts</h2>
-<p>What each part looks like, what it does, which pins you will use and one tip. The pictures are drawings of the
-common versions; your boards may differ slightly in colour or pin order, so always read the labels printed on the board.</p>
+<p>What each part looks like, what it does, which pins you will use and one tip. Your boards may differ slightly in colour or
+pin order: always read the labels printed on the board.</p>
 {cards_html()}</section>""")
     # ---------------------------------------------------------------- 4 safety
     H.append("""<section class="page"><h2 class="sec"><span>4</span>Safety first</h2>
 <div class="warn"><b>Lithium batteries store a lot of energy.</b><ul>
-<li>Never short the + and − of a cell or pack (no loose wires, no metal tools across terminals).</li>
-<li>Check polarity three times before inserting a cell: + goes to the + mark.</li>
+<li>Never short the + and − of a cell or pack. Check polarity three times before inserting a cell.</li>
 <li>Charge only with a proper Li-ion charger, never unattended, on a non-flammable surface.</li>
-<li>Do not use cells with dents, torn wrapping or that get hot; recycle them.</li>
-<li>Switch the battery off before changing any wire.</li></ul></div>
-<div class="warn"><b>Protect the Raspberry Pi.</b><ul>
-<li>Its GPIO pins are <b>3.3 V only</b>. 5 V on a GPIO pin damages it instantly, so every 5 V output goes through a divider.</li>
-<li>The Pi gets power only from the power bank's USB cable. <b>Never</b> connect the motor battery's + to the Pi or the hub.</li>
-<li>Never power motors from the Pi's pins. The only wire between the motor side and the Pi side is GND (pin 9).</li>
-<li>Measure each power rail with the multimeter before plugging a board in.</li>
-<li>Touch something metal before handling boards (static electricity).</li></ul></div>
+<li>Switch the motor battery off before changing any wire.</li></ul></div>
+<div class="warn"><b>Protect the XIAO.</b><ul>
+<li>Its pins are <b>3.3 V only</b>. Never connect the motor battery, or a 5 V signal, to any XIAO pin.</li>
+<li>The motor battery goes to the DRV8833 <b>VM</b> and <b>GND</b> only. At most 2 cells (8.4 V): the DRV8833 allows 10.8 V.</li>
+<li>Press the Sense board on and click the camera ribbon in <b>before</b> plugging in USB.</li></ul></div>
 <div class="warn"><b>Moving parts.</b><ul>
 <li>Test motors with the robot on a box, <b>wheels in the air</b>.</li>
-<li>Keep fingers and hair away from the wheels.</li>
-<li>The L298N heatsink gets hot.</li></ul></div>
-<h3>The two rules you will use most</h3>""" + figure(D.fig_divider_why(), "A voltage divider: 5 V × 2 kΩ / (1 kΩ + 2 kΩ) = 3.33 V, safe for the Pi.") + """
-<p>And: <b>measure, then connect</b>. Put the multimeter on DC volts, black probe on GND, red probe on the rail.
-5 V rail: 4.9-5.2 V. 3.3 V rail: 3.2-3.4 V. Motor battery: 6.6-8.4 V.</p></section>""")
+<li>Keep fingers and hair away from the wheels.</li></ul></div>
+<div class="note"><b>Built-in safety:</b> the ESP32 stops the motors by itself 0.6 s after the PC stops talking to it, and it
+refuses to drive forward when the distance sensor sees something closer than 15 cm (or when the sensor is not answering).
+Turning and reversing are still allowed, so the robot can get itself out.</div>
+</section>""")
     # ---------------------------------------------------------------- 5 pin map
     H.append(f"""<section class="page"><h2 class="sec"><span>5</span>The pin map</h2>
-<p>Every Raspberry Pi pin the robot uses. Physical pin numbers (1-40) are what you count on the header; the GPIO names
-are what the software uses (they are already set in <code>edge/config.yaml</code>).</p>
-{figure(D.fig_pi_header(), "Figure 2 - Raspberry Pi 4 header, top view, USB ports pointing down the page.")}
-<div class="note">Everything else does not touch the header: the webcam (camera + microphone) uses USB, the speaker amplifier
-uses the 3.5 mm audio jack, and the Pi is powered through its USB-C socket from the power bank.</div>
+<p>The robot uses 8 of the XIAO's 11 signal pins, plus 3V3 and GND. These pins are fixed in the firmware, the Wiring Bench
+and the PC program: wire them exactly like this.</p>
+{figure(F.fig_xiao_map(), "Figure 2 - every XIAO pin and where it goes.")}
+<table class="bom"><thead><tr><th>XIAO pin</th><th>Goes to</th><th>Why</th></tr></thead><tbody>
+<tr><td><b>D0, D1</b></td><td>DRV8833 AIN1, AIN2</td><td class="why">Left motor: forward / reverse (PWM)</td></tr>
+<tr><td><b>D2, D3</b></td><td>DRV8833 BIN1, BIN2</td><td class="why">Right motor: forward / reverse (PWM)</td></tr>
+<tr><td><b>D4, D5</b></td><td>SDA, SCL of the MPU6050 and the AHT20 + BMP280</td><td class="why">I²C bus shared by both boards</td></tr>
+<tr><td><b>D6, D7</b></td><td>HC-SR04P TRIG, ECHO</td><td class="why">Distance sensor</td></tr>
+<tr><td><b>3V3, GND</b></td><td>Breadboard + and − rails</td><td class="why">Power for all sensors; GND joins the motor side too</td></tr>
+</tbody></table>
 </section>""")
     # ---------------------------------------------------------------- 6 steps
     H.append('<section class="page"><h2 class="sec"><span>6</span>Build it in 11 steps</h2><p>Each step lists what you need, '
-             'what to do, a picture, and a check. Do them in order.</p></section>')
-    H.append(step(1, "Prepare the Raspberry Pi (software first)", "Pi 4, microSD card, the power bank, your PC",
+             'what to do, a picture, and a check. Do them in order.</p>'
+             + figure(F.fig_layout_top(), "Where everything goes on the robot.")
+             + figure(F.fig_layout_side(), "Side view.") + '</section>')
+    H.append(step(1, "Get the PC (the brain) ready", "your laptop with the Raqib project folder",
                   """<ol>
-<li>On the PC install <b>Raspberry Pi Imager</b>. Choose <i>Raspberry Pi 4</i> → <i>Raspberry Pi OS (64-bit)</i> (the Lite version is fine) → your microSD card.</li>
-<li>In the settings (gear / "Edit settings"): hostname <code>robot01</code>, a username and password, <b>enable SSH</b>, and add a Wi-Fi.
-Your <b>phone's hotspot</b> is the best one: the robot then has internet for the AI wherever you go.</li>
-<li>Write the card, put it in the Pi (slot underneath), power the Pi from the <b>power bank</b> (or a USB-C phone charger). Wait 2 minutes.</li>
-<li>On the PC, double-click <code>pack_robot_for_pi.bat</code> in the project folder. It makes <code>raqib-robot.zip</code>.</li>
-<li>Copy the zip to the Pi (WinSCP to <code>robot01.local</code>, or a USB stick) and run on the Pi:</li></ol>"""
-                  + cmd("unzip raqib-robot.zip -d ~/raqib\ncd ~/raqib && bash edge/scripts/install_pi.sh\nsudo reboot")
-                  + "<p>The installer sets real-hardware mode, starts the robot and its server at every power-on, and makes the robot's own "
-                    "Wi-Fi <b>Raqib-Robot</b> (password <code>raqib1234</code>) when no known Wi-Fi is around.</p>"
-                  + check(["The Pi boots and you can log in (SSH or keyboard + screen)", "The installer ended with 'Done'",
-                           "The phone app finds the robot ('Find automatically'); Robot health shows the sensors red: correct, nothing is wired yet"])))
-    H.append(step(2, "Chassis and 4 motors", "4WD chassis kit (4 TT motors, 4 wheels), wire, soldering iron",
+<li>If you have not yet: double-click <code>setup_windows.bat</code> in the project folder (installs everything once).</li>
+<li>Double-click <code>allow_robot_connections.bat</code> once and click <b>Yes</b>: it lets the phone reach the server and lets
+the PC hear the robot's "here I am" message.</li>
+<li>Try it with no parts: double-click <code>start_esp32_emulator.bat</code>. A pretend ESP32 robot drives in the app at
+<code>http://localhost:8000</code>. Close its windows when done.</li></ol>"""
+                  + check(["The app opens at http://localhost:8000 and the pretend robot moves", "More → Robot health: all green"])))
+    H.append(step(2, "Put the firmware on the XIAO", "XIAO ESP32S3 Sense, its Sense board and camera, USB-C data cable, Chrome or Edge",
                   """<ol>
-<li><b>Solder</b> a red and a black 20 cm wire to the two tabs of each of the 4 motors. Twist each pair.</li>
-<li>Fix the 4 motors under the bottom deck with the kit's brackets and long screws, all wires towards the middle.</li>
-<li>Push the 4 wheels onto the outer shafts.</li>
-<li>Join the two motors of each side: red to red, black to black. Each side now has one red + one black wire.</li></ol>
-<div class="note"><b>How 4 wheels steer (skid steering):</b> the two left wheels always turn together, and so do the two right
-wheels. Both sides forward = straight; one side slower = curve; sides in opposite directions = turn on the spot (the wheels
-skid a little sideways, which is normal). This is why one L298N is enough: one channel per side.</div>
-<div class="note"><b>No wheel encoders in this build.</b> The robot works out how far it drove from how long and how hard each motor
-ran (you calibrate this once in step 10), and the MPU6050 measures every turn. Fewer wires, fewer parts that can fail.</div>"""
-                  + figure(D.fig_motor_mount(), "Four motors under the bottom deck.")
-                  + figure(D.fig_motor_pairs(), "Each side's two motors in parallel.")
-                  + check(["All 4 wheels turn freely by hand", "Nothing rubs the wheels",
-                           "Left pair and right pair each have one red + one black wire to go to the L298N"])))
-    H.append(step(3, "Power: two batteries and one shared ground",
-                  "power bank + its USB-C cable, battery holder + 2 cells, L298N, wire, multimeter",
-                  """<p>The Pi and the motors get <b>separate batteries</b>. Motor starts pull a lot of current; on their own battery
-they can never make the Pi restart. There is nothing to adjust: the power bank already gives a clean 5 V.</p><ol>
-<li>Motor battery holder <b>red</b> → L298N <b>+12V</b>, <b>black</b> → L298N <b>GND</b>. Switch it off for now.</li>
-<li>A second wire from the L298N <b>GND</b> screw → Raspberry Pi <b>pin 9</b> (GND). <b>Do not skip this:</b> without a shared
-ground the motor driver cannot understand the Pi's signals and the wheels do nothing or twitch.</li>
-<li>Power bank → its USB-C cable → the Pi's <b>USB-C</b> power socket. The power bank sits on the bottom deck, the motor battery underneath.</li>
-<li><b>Never</b> connect the motor battery's + to the Pi or to the hub board.</li></ol>"""
-                  + figure(D.fig_power(), "Figure 3 - power wiring: the power bank feeds the Pi, the 18650 pack feeds the motors, one shared ground.")
-                  + check(["Motor battery reads 7-8.4 V at the L298N +12V terminal (switch on)", "The Pi boots from the power bank alone",
-                           "Continuity mode: L298N GND beeps to Pi pin 9",
-                           "Charging: power bank with its USB cable; motor cells in the 2-slot charger"])))
-    H.append(step(4, "Mount the boards", "the kit's top deck and standoffs, screws, foam tape",
-                  "<p>Follow the layout: the motor battery under the bottom deck, the power bank and L298N on the bottom deck, "
-                  "the Pi on the top deck away from the AHT20, sonars on the front edge, the webcam at the front looking forward.</p>"
-                  + figure(D.fig_layout_side(), "Side view: two decks on 35-40 mm standoffs.")
-                  + figure(D.fig_layout_top(), "Top deck layout.")
-                  + check(["Nothing touches the wheels", "No board's underside touches metal (use nylon washers)",
-                           "The power bank's button and USB port can still be reached to charge it"])))
-    H.append(step(5, "Build the hub board", "perfboard, resistors (3 x 1k, 3 x 2k), header strips, wire, soldering iron",
-                  """<p>The hub board is the heart of the wiring: five rails that every sensor plugs into, and the three sonar dividers.</p><ol>
-<li>Solder five long rails (bare wire or the board's strips): <b>5V, 3V3, GND, SDA, SCL</b>. Label them with a marker.</li>
-<li>Solder a female header strip along each rail so jumper wires can plug in.</li>
-<li>Solder the three sonar dividers: 1 kΩ on top, 2 kΩ to GND. Put a header pin on the input and on the middle point of each.</li>
-<li>Connect the rails to the Pi with F-F jumpers: pin 2 → 5V, pin 1 → 3V3, pin 6 → GND, pin 3 → SDA, pin 5 → SCL.</li></ol>"""
-                  + figure(D.fig_hub(), "Figure 4 - the hub board: rails on top, the three echo dividers below.")
-                  + check(["Multimeter, Pi on, nothing else plugged in: 5V rail ≈ 5 V, 3V3 rail ≈ 3.3 V",
-                           "No two rails are shorted (continuity mode: no beep between rails)",
-                           "Each divider: 5 V on its input reads ≈ 3.3 V at its middle point"])))
-    H.append(step(6, "I²C boards: MPU6050 and AHT20 + BMP280", "the two boards, F-F jumpers",
-                  "<p>Each I²C board gets four wires from the hub rails: <b>3V3, GND, SDA, SCL</b>.</p>"
-                  + figure(D.fig_i2c(), "Figure 5 - the I²C bus.")
-                  + cmd("sudo systemctl stop inspection-robot     # stop the robot program while you test\ncd ~/raqib/edge && source .venv/bin/activate\npython -m hwtest.i2c_scan")
-                  + check(["i2c_scan shows 0x38 + 0x77 or 0x76 (AHT20 + BMP280) and 0x68 (MPU6050)",
-                           "It says motor speed will come from GPIO 13/19 (no PCA9685 found): correct for this build"])))
-    H.append(step(7, "Motors: the L298N and the Pi", "L298N (already powered and grounded in step 3), M-F / F-F jumpers",
-                  """<ol><li>Pull the <b>ENA</b> and <b>ENB</b> jumpers off the L298N. Leave the 5V-EN jumper.</li>
-<li>Pi pins 11, 13, 15, 16 → L298N IN1, IN2, IN3, IN4 (direction).</li>
-<li>Pi pin 33 → ENA, pin 35 → ENB (speed).</li>
-<li>Left motor pair → OUT1/OUT2, right motor pair → OUT3/OUT4.</li>
-<li>Check again: L298N GND → Pi pin 9 (step 3).</li></ol>"""
-                  + figure(D.fig_motors(), "Figure 6 - motor wiring.")
-                  + cmd("python -m hwtest.test_motors          # robot on a box, wheels in the air!")
-                  + check(["Each side turns forwards when told 'forward'. Wrong way: swap that pair's OUT wires (or invert: true in config)",
-                           "The wheels start smoothly (soft start), and stop at once",
-                           "The Pi keeps running when all 4 wheels start (it has its own battery)"])))
-    H.append(step(8, "Three distance sensors", "3 HC-SR04, F-F jumpers, hot glue or brackets",
-                  "<ol><li>Mount the sensors on the front edge: left one turned 45° left, centre straight, right one 45° right.</li>"
-                  "<li>VCC → hub 5V, Gnd → hub GND.</li><li>Trig → Pi pin directly (3.3 V is enough to trigger).</li>"
-                  "<li>Echo → its divider's input on the hub board; the divider's middle point → the Pi pin.</li></ol>"
-                  "<p>The software pings one sensor at a time with a short quiet gap, so the three never hear each other's echoes.</p>"
-                  + figure(D.fig_sonar(), "Figure 7 - ultrasonic sensors and their dividers.")
-                  + cmd("python -m hwtest.test_sensors")
-                  + check(["Each distance follows your hand (left, centre, right)", "A constant 400 cm or 0 means Trig/Echo swapped or a divider fault",
-                           "Heading changes when you turn the robot by hand (MPU6050)"])))
-    H.append(step(9, "Webcam, microphone and speaker", "USB webcam, PAM8403, speaker, 3.5 mm cable",
-                  "<ol><li>Webcam into a USB port; clip or glue it to the front of the top deck, level and looking forward.</li>"
-                  "<li>Cut the 3.5 mm cable: the tip wire → PAM8403 L, the shield → G. Plug the other end into the Pi's audio jack. PAM8403 5V/GND from the hub.</li>"
-                  "<li>Speaker → PAM8403 L+ and L−.</li></ol>"
-                  "<p>The robot finds the webcam, its microphone and the audio jack by itself.</p>"
-                  + figure(D.fig_audio(), "Figure 8 - webcam, audio jack, amplifier and speaker.")
-                  + cmd("python -m hwtest.test_camera_audio\nspeaker-test -D plughw:CARD=Headphones -c1 -t wav -l1   # quick speaker check")
-                  + check(["test_snapshot.jpg shows the room the right way up", "test_audio.wav has your voice", "The speaker says the test sentence"])))
+<li>Press the <b>Sense board</b> onto the XIAO's back until it clicks. Lift the little latch of the camera socket on the Sense
+board, push the camera ribbon in, close the latch. Click on the small Wi-Fi antenna if your kit has one.</li>
+<li>Plug the XIAO into the PC with the USB-C cable.</li>
+<li>In Chrome or Edge open <b>https://espressif.github.io/esptool-js/</b>. Click <b>Connect</b> and pick the XIAO's port
+(often "USB JTAG/serial debug unit").</li>
+<li>Flash Address <b>0x0</b>, choose the file <code>esp32\\raqib_esp32_xiao.bin</code> from the project folder, click
+<b>Program</b>. When it finishes, unplug and replug the XIAO.</li>
+<li>Not connecting? Hold the tiny <b>B</b> (boot) button while plugging the USB in, then try again.</li></ol>
+<p>Prefer Arduino IDE? Open <code>esp32\\raqib_esp32\\raqib_esp32.ino</code>, board <b>XIAO_ESP32S3</b>,
+Tools → PSRAM → <b>OPI PSRAM</b>, Upload. See <code>esp32\\README.md</code>.</p>"""
+                  + check(["The orange LED on the XIAO blinks slowly: it made its own Wi-Fi \"Raqib-Robot\""])))
+    H.append(step(3, "Connect the robot to your Wi-Fi", "the XIAO on USB (PC or power bank), your phone",
+                  """<ol>
+<li>Turn on your <b>phone's hotspot</b> (2.4 GHz; on iPhone turn on "Maximise Compatibility").</li>
+<li>With the phone or the PC, join the Wi-Fi <b>Raqib-Robot</b>, password <code>raqib1234</code>.</li>
+<li>Open <b>http://192.168.4.1</b>. Under <b>Wi-Fi</b>, type your hotspot's name and password, press <b>Save</b>.</li>
+<li>The robot restarts and joins your hotspot. Its LED now stays on (it blinks off briefly while parts are still missing).</li>
+<li>Join the hotspot with the PC too, and open <b>http://raqib.local</b>: the robot's test page with its camera picture.</li></ol>
+<p>Not working? The robot remakes the Raqib-Robot network after 20 s if it cannot join: check the name and password.
+<code>raqib.local</code> not opening? Use the robot's address instead: your phone's hotspot screen lists it under connected devices.</p>"""
+                  + check(["http://raqib.local shows the camera picture, updating every second",
+                           "The status shows \"cam_ok\": true and \"mic_ok\": true"])))
+    H.append(step(4, "Build the chassis", "2WD chassis kit, battery holder, screwdriver",
+                  """<ol>
+<li>Fix the two TT motors under the deck at the front with the kit's brackets, wires towards the middle.</li>
+<li>Push the wheels on; fix the caster wheel at the back.</li>
+<li>Fix the 2 x 18650 holder under the deck (foam tape or screws) with its switch reachable. No cells in it yet.</li>
+<li>Stick the half breadboard on the deck behind the motors, long side across the robot.</li></ol>"""
+                  + check(["Both wheels turn freely by hand", "The robot stands level on its two wheels and the caster"])))
+    H.append(step(5, "Mount the XIAO and make the rails", "XIAO, bracket, foam tape, jumper wires (F-M)",
+                  """<ol>
+<li>Solder the XIAO's header pins if they are not soldered yet (14 joints; push the pins into the breadboard to hold them straight).</li>
+<li>Stand the XIAO upright at the front on a small bracket (folded card or plastic + foam tape): <b>USB-C up, camera looking forward</b>
+over the front edge.</li>
+<li>Jumper from the XIAO <b>3V3</b> pin to the breadboard <b>+</b> rail, and from <b>GND</b> to the <b>−</b> rail.</li>
+<li>Join the top and bottom rails with two short wires (+ to +, − to −).</li></ol>"""
+                  + figure(F.wiring(groups=()), "The parts in place before wiring: XIAO, breadboard rails, DRV8833 and sensors.")
+                  + check(["The camera looks straight ahead, not at the floor", "3V3 is on the + rail, GND on the − rail, not swapped"])))
+    H.append(step(6, "Power: two batteries and one shared ground", "power bank, 2 x 18650 cells, DRV8833, jumper wires",
+                  """<ol>
+<li>Push the DRV8833 into the breadboard.</li>
+<li>Battery holder <b>red</b> → DRV8833 <b>VM</b>; <b>black</b> → DRV8833 <b>GND</b>.</li>
+<li>A second wire from DRV8833 <b>GND</b> → breadboard <b>− rail</b>. This is the <b>common ground</b>: without it the motors do nothing.</li>
+<li>If the DRV8833 has an <b>EEP</b> (or SLP) pin: wire it to the <b>+ rail</b> (3V3).</li>
+<li>Power bank → USB-C cable → XIAO. Insert the cells (check polarity!), switch the holder on.</li></ol>"""
+                  + figure(F.wiring(groups=("power",)), "Figure 3 - power: the power bank feeds the XIAO, the 18650 pack feeds the motors, one shared ground.")
+                  + check(["The XIAO runs from the power bank (test page opens)", "The battery's + goes only to VM, nowhere else",
+                           "DRV8833 GND is joined to the breadboard − rail"])))
+    H.append(step(7, "Motors", "jumper wires (M-M)",
+                  """<ol>
+<li>XIAO <b>D0 → AIN1</b>, <b>D1 → AIN2</b> (left motor); <b>D2 → BIN1</b>, <b>D3 → BIN2</b> (right motor).</li>
+<li>Left motor's two wires → <b>AOUT1</b> and <b>AOUT2</b>; right motor's two wires → <b>BOUT1</b> and <b>BOUT2</b>.</li>
+<li>Robot on a box, wheels in the air. On the test page (<code>http://raqib.local</code>) hold <b>◀</b>: the robot turns left.</li>
+<li>A wheel turns backwards? Swap that motor's two wires. Left and right mixed up? Swap the motors between AOUT and BOUT.</li></ol>"""
+                  + figure(F.wiring(groups=("power", "motors")), "Figure 4 - motor wiring.")
+                  + check(["◀ turns the robot left, ▶ right, ▼ backwards", "The wheels stop within a second of releasing the button",
+                           "▲ does nothing yet? Correct: the distance sensor is not wired, so forward is refused"])))
+    H.append(step(8, "Sensors", "MPU6050, AHT20 + BMP280, HC-SR04P, jumper wires",
+                  """<ol>
+<li>Push the MPU6050 and the AHT20 + BMP280 into the breadboard (MPU6050 flat, near the middle).</li>
+<li>Each: <b>VCC/VIN → + rail</b>, <b>GND → − rail</b>, <b>SDA → XIAO D4</b>, <b>SCL → XIAO D5</b>.</li>
+<li>Mount the HC-SR04P at the front edge, below the camera, looking straight ahead.</li>
+<li>HC-SR04P <b>VCC → + rail</b> (3.3 V!), <b>GND → − rail</b>, <b>TRIG → D6</b>, <b>ECHO → D7</b>.</li>
+<li>Switch everything off and on again, and keep the robot still for 2 s (the gyro learns its offset).</li></ol>"""
+                  + figure(F.wiring(groups=("power", "motors", "sensors")), "Figure 5 - the whole robot: sensors on the rails, I²C on D4/D5, distance sensor on D6/D7.")
+                  + check(["Test page: imu_ok, aht_ok, bmp_ok and us_ok are all true", "dist_cm follows your hand in front of the sensor",
+                           "yaw changes when you turn the robot by hand; temperature and humidity look right",
+                           "▲ now drives forward, and stops by itself in front of your hand",
+                           "The orange LED stays on steadily (all parts found)"])))
+    H.append(step(9, "Connect the brain", "the PC on the same hotspot, the phone with the Raqib app",
+                  """<ol>
+<li>PC and phone on the same hotspot as the robot.</li>
+<li>Double-click <code>start_my_robot.bat</code>. It starts the server and the robot program, which finds the robot by itself.</li>
+<li>Phone: open the Raqib app → <b>Find automatically</b> → sign in. <b>More → AI settings</b>: paste your Gemini key once.</li>
+<li><b>More → Robot health</b>: every part green.</li></ol>
+<p>Robot not found? Read its address on the test page (for example 192.168.43.57) and write it in <code>edge\\config.yaml</code>
+under <code>hardware:</code> → <code>esp32_host: 192.168.43.57</code>.</p>"""
+                  + check(["Robot health: all green; Speaker says \"no speaker: the phone app speaks\"", "Drive tab: live video and the arrows work",
+                           "STOP in the app stops the robot at once"])))
     H.append(step(10, "Calibrate the driving (10 minutes, once)", "the robot, a tape measure, 3 m of free floor",
-                  """<p>Without encoders the robot measures distance from motor power × time, so it must learn how fast <i>your</i> motors are.
-Do this on the floor where the robot will work (tiles and carpet are different).</p><ol>
-<li><b>Lowest power that moves:</b> robot on a box, wheels in the air. Run the first command and answer <i>y</i> as soon as all 4 wheels turn.
-Write the two numbers it prints into <code>edge/config.yaml</code> (<code>motor_deadband</code> and <code>min_power</code>).</li>
-<li><b>Top speed:</b> robot on the floor, mark the start with tape. Run the second command; it drives for 3 seconds. Measure how far it went
-in cm and type it in. Write the <code>max_speed_mps</code> it prints into <code>edge/config.yaml</code>.</li>
-<li><b>Check:</b> the third command drives 2 m. Measure: within ±10 % (1.8-2.2 m) is good. Not good? Charge the motor cells fully and repeat the top-speed run.</li></ol>"""
-                  + cmd("python -m hwtest.test_motors --deadband     # wheels in the air\npython -m hwtest.test_motors --calibrate    # on the floor\npython -m hwtest.test_motors --straight 2   # on the floor: check")
-                  + "<div class=\"note\"><b>Tip:</b> calibrate with the motor cells fully charged, and charge them before each demo. "
-                    "Weak cells make the robot drive shorter than it thinks. Turning does not need calibrating: the MPU6050 measures every turn.</div>"
-                  + check(["motor_deadband, min_power and max_speed_mps are written in config.yaml",
-                           "--straight 2 ends between 1.8 m and 2.2 m", "It drifts sideways less than 20 cm"])))
-    H.append(step(11, "Everything together", "the finished robot, the phone with the Raqib app",
-                  "<ol><li>Tidy the cables with zip ties; nothing near the wheels.</li>"
-                  "<li>Start the robot program again: <code>sudo systemctl start inspection-robot</code> (or reboot).</li>"
-                  "<li>Phone on the same Wi-Fi (or join <b>Raqib-Robot</b>). Open the app → <b>Find automatically</b> → sign in.</li>"
-                  "<li><b>More → AI settings</b>: paste your Gemini key once.</li>"
-                  "<li><b>More → Robot health</b>: every part should be green. <i>Camera mount</i> says <i>fixed camera</i>, "
-                  "<i>Distance measuring</i> says <i>not fitted</i> and <i>Battery level</i> says <i>not measured</i>: all correct for this build. "
-                  "Red? Tap it for the fix, then <b>Re-check parts</b>.</li>"
-                  "<li>Drive to each room, read the position on the Home screen, and write them under <code>zones:</code> in <code>edge/config.yaml</code>.</li></ol>"
-                  + figure(D.fig_full_harness(), "Figure 9 - the complete harness on one page.")
-                  + check(["Every part green in Robot health", "STOP in the app stops the robot immediately",
-                           "A hand 30 cm in front of the moving robot stops it before 15 cm",
-                           "Drive → Camera: left turns the whole robot left, centre turns it back"])))
+                  """<p>The robot measures distance from motor power × time, so it learns how fast <i>your</i> motors are. Close the
+"Robot brain" window first (two programs must not drive at once). In the project folder's <code>edge</code> folder:</p>"""
+                  + cmd("..\\.venv\\Scripts\\python -m hwtest.test_motors --deadband     # wheels in the air\n"
+                        "..\\.venv\\Scripts\\python -m hwtest.test_motors --calibrate    # on the floor, measure with the tape\n"
+                        "..\\.venv\\Scripts\\python -m hwtest.test_motors --straight 2   # check: should end 1.8-2.2 m")
+                  + "<p>Write the numbers each one prints (<code>motor_deadband</code>, <code>min_power</code>, <code>max_speed_mps</code>) "
+                    "into <code>edge\\config.yaml</code> under <code>motion:</code>. Turns need no calibration: the ESP32 turns with its own gyro.</p>"
+                  + check(["--straight 2 ends between 1.8 m and 2.2 m", "It drifts sideways less than 20 cm"])))
+    H.append(step(11, "Everything together", "the finished robot",
+                  "<ol><li>Start <code>start_my_robot.bat</code> again. Tidy the wires with zip ties; nothing near the wheels.</li>"
+                  "<li>Drive to each room, read the position on the Home screen, and write them under <code>zones:</code> in "
+                  "<code>edge\\config.local.yaml</code> (your building's rooms).</li>"
+                  "<li>Try it: \"Check the aircon in all rooms\", and More → Exam monitor in the exam room.</li></ol>"
+                  + check(["Every part green in Robot health", "A hand 30 cm in front of the moving robot stops it before 15 cm",
+                           "Switching the PC's Wi-Fi off stops the robot within a second",
+                           "\"Turn left 90\" ends within a few degrees of 90"])))
     # ---------------------------------------------------------------- 7 troubleshooting
     trouble = [
-        ("i2c_scan finds nothing", "I²C off, SDA/SCL swapped, or no 3.3 V on the rail", "sudo raspi-config → Interface → I2C on; check pins 3/5; measure the 3V3 rail"),
-        ("One I²C board is missing", "Loose jumper", "Re-seat its 4 wires; run i2c_scan again"),
-        ("Wheels do nothing or twitch", "No common ground between the L298N and the Pi", "Wire L298N GND → Pi pin 9 (step 3)"),
-        ("Wheels do not turn", "ENA/ENB jumpers still on, ENA/ENB not on pins 33/35, motor battery off", "Remove the jumpers, check pins 33/35, switch on"),
-        ("One side turns backwards", "Motor wires reversed", "Swap that pair's two OUT wires, or set invert: true"),
-        ("One wheel of a pair turns the wrong way", "That motor's red/black reversed", "Swap its two wires where the pair is joined"),
-        ("Robot will not turn on the spot", "4 wheels skid hard on carpet / rubber floor", "Raise min_power to 0.45 and turn_speed to 0.6 in config.yaml"),
-        ("Drives too far or too short", "Not calibrated on this floor, or weak motor cells", "Charge the cells and run step 10 again"),
-        ("Lightning-bolt / 'low voltage' warning", "Power bank gives less than 3 A, or a thin cable", "Use a 5 V 3 A bank and its own short cable"),
-        ("Pi switches off during a run", "Power bank empty", "Charge it; its LEDs show the level"),
-        ("Sonar always 400 cm (or 0)", "Trig/Echo swapped, no 5 V, wrong divider", "Check the pin numbers and measure 5 V at the sensor; try the spare"),
-        ("Camera not found", "Webcam not detected", "ls /dev/video* should list it; try another USB port or cable"),
-        ("No sound", "No amp power, cable on the wrong pins", "5 V on the PAM8403; speaker-test (step 9); tip → L, shield → G"),
-        ("AI does not answer", "No internet on the robot's Wi-Fi", "Use the phone's hotspot as the robot's Wi-Fi (step 1)"),
-        ("App cannot find the robot", "Phone on another network", "Same Wi-Fi or join Raqib-Robot; the robot says its address at start-up"),
+        ("Esptool page cannot connect", "Charge-only cable, or the XIAO is not in download mode", "Another USB-C cable; hold B while plugging in"),
+        ("Camera picture missing (cam_ok false)", "Sense board not clicked on, ribbon latch open, or flashed without PSRAM",
+         "Re-seat the Sense board and the ribbon; use the .bin file (it has PSRAM on)"),
+        ("Robot never joins the hotspot", "5 GHz hotspot or wrong password", "2.4 GHz / Maximise Compatibility; type it again on 192.168.4.1"),
+        ("raqib.local does not open", "Some phones and PCs do not support .local names", "Use the IP address (hotspot's connected devices)"),
+        ("PC program says 'robot not found'", "Different Wi-Fi, or Windows Firewall", "Same hotspot; run allow_robot_connections.bat; set esp32_host"),
+        ("Wheels do nothing", "No common ground, battery off, or EEP pin low", "DRV8833 GND to − rail; switch on; EEP to 3V3"),
+        ("Forward is refused, turning works", "Distance sensor not answering (us_ok false) or something in front",
+         "HC-SR04P on 3V3, TRIG D6, ECHO D7; try the spare sensor"),
+        ("One wheel turns backwards", "Motor wires reversed", "Swap that motor's two wires (or set invert: true in config.yaml)"),
+        ("imu_ok or aht_ok false", "I²C wires", "VCC on the + rail, GND on −, SDA on D4, SCL on D5 (not swapped)"),
+        ("The robot drives too far or too short", "Not calibrated on this floor, or weak cells", "Charge the cells and redo step 10"),
+        ("Robot stops every few seconds", "Weak Wi-Fi: the 0.6 s safety stop", "Keep the PC near the robot; use the phone hotspot"),
+        ("AI does not answer", "No internet on the PC", "The PC needs internet for the AI: the hotspot gives it"),
     ]
     rows = "".join(f"<tr><td><b>{escape(a)}</b></td><td>{escape(b)}</td><td>{escape(c)}</td></tr>" for a, b, c in trouble)
     H.append(f"""<section class="page"><h2 class="sec"><span>7</span>Troubleshooting</h2>
 <table class="bom trouble"><thead><tr><th>What you see</th><th>Usual cause</th><th>Fix</th></tr></thead><tbody>{rows}</tbody></table>
-<div class="note">Logs on the Pi: <code>journalctl -u inspection-robot -f</code> (robot) and <code>journalctl -u raqib-server -f</code> (server).
-The app's <b>Robot health</b> screen shows every part with a hint when it is red.</div>
+<div class="note">The robot's own test page (<code>http://raqib.local</code>) shows every sensor live, and the app's
+<b>Robot health</b> screen shows every part with a hint when it is red.</div>
 </section>
 <section class="page"><h2 class="sec"><span>8</span>Final checklist before a demo</h2>
 <div class="check big"><ul>
-<li>☐ Power bank full (all LEDs on) and motor cells charged; a spare charged pair in the bag</li>
-<li>☐ Driving calibrated on this floor (step 10): --straight 2 ends within 1.8-2.2 m</li>
+<li>☐ Power bank full and motor cells charged; a spare charged pair in the bag</li>
+<li>☐ Phone hotspot on; PC and robot joined to it; <code>start_my_robot.bat</code> running</li>
 <li>☐ Every part green in Robot health</li>
 <li>☐ STOP in the app stops the robot; Reset is needed to move again</li>
 <li>☐ A hand 30 cm in front of the moving robot stops it before 15 cm</li>
-<li>☐ Stopping the server (sudo systemctl stop raqib-server) puts the robot in SAFE HOLD within about 10 s</li>
+<li>☐ Driving calibrated on this floor (step 10)</li>
 <li>☐ The robot starts at the Home spot, facing the same direction as when you measured the rooms</li>
-<li>☐ The admin password in the app has been changed from admin123</li>
 <li>☐ AI key entered in More → AI settings; "Test" says it works</li>
 </ul></div>
-</section>""")
-    # ---------------------------------------------------------------- 9 upgrades
-    H.append(f"""<section><h2 class="sec" style="margin-top:18px"><span>9</span>Upgrades later</h2>
-<p>When you have more budget, add any of these. You do not change the software: at start-up the robot checks which parts
-answer and uses them (servos if a PCA9685 is found, the ribbon camera before the webcam, a BME680 before the AHT20, a UPS battery gauge).
-The gas sensor and encoders need one line in <code>edge/config.yaml</code> (<code>gas_sensor: mq135</code>, <code>encoders: true</code>). Press <b>Re-check parts</b> in Robot health after fitting one.</p>
+<h3>Upgrades later</h3>
 {upgrades_table()}
 <p class="end">Built it? Run the final checklist, then show it off.</p>
 </section>""")
@@ -466,7 +422,7 @@ def main():
   await p.goto('file://{OUT_HTML}'); await p.waitForTimeout(500);
   await p.pdf({{ path: '{OUT_PDF}', format: 'A4', printBackground: true, displayHeaderFooter: true,
     headerTemplate: '<span></span>',
-    footerTemplate: '<div style="font-family:Inter,sans-serif;font-size:8px;color:#8a949c;width:100%;padding:0 14mm;display:flex;justify-content:space-between"><span>Raqib · robot build guide</span><span class="pageNumber"></span></div>',
+    footerTemplate: '<div style="font-family:Inter,sans-serif;font-size:8px;color:#8a949c;width:100%;padding:0 14mm;display:flex;justify-content:space-between"><span>Raqib · ESP32 robot build guide</span><span class="pageNumber"></span></div>',
     margin: {{ top: '14mm', bottom: '16mm', left: '14mm', right: '14mm' }} }});
   await b.close(); }})();""")
     npm_root = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True).stdout.strip()

@@ -6,7 +6,9 @@ reports each room's climate, a camera that renders a synthetic picture of the ro
 a microphone that synthesises the room's sound signature.
 
 `sim_build` picks which robot is simulated:
-  budget (default) - the reliable RM 500 build: 4WD, fixed USB webcam (the robot turns to look), AHT20 + BMP280,
+  esp32 (default)  - the ESP32 robot 3.0: 2WD + caster, one HC-SR04P at the front, MPU6050, AHT20 + BMP280,
+                     XIAO ESP32S3 Sense camera + microphone, no speaker (the phone speaks), PC is the brain
+  budget           - the Raspberry Pi RM 500 build: 4WD, fixed USB webcam (the robot turns to look), AHT20 + BMP280,
                      no gas sensor, no wheel encoders (distance from motor time + IMU), Pi on a power bank
   full             - PCA9685 + pan/tilt servos, BME680 with VOC, 3-cell UPS module
 """
@@ -282,12 +284,14 @@ class SimPanTilt(PanTilt):
 
 
 class SimUltrasonics(Ultrasonics):
-    def __init__(self, w: SimWorld):
+    def __init__(self, w: SimWorld, front_only: bool = False):
         self.w = w
+        self.front_only = front_only        # the ESP32 robot has one sensor, at the front
 
     def read_cm(self) -> dict[str, float]:
-        out = {}
-        for name, ang in (("left", math.radians(45)), ("center", 0.0), ("right", math.radians(-45))):
+        out = {"left": 400.0, "right": 400.0}
+        sensors = (("center", 0.0),) if self.front_only else (("left", math.radians(45)), ("center", 0.0), ("right", math.radians(-45)))
+        for name, ang in sensors:
             # HC-SR04 has a ~15 deg beam: cast a small fan of rays and keep the nearest echo
             d = min(self.w.ray(ang + math.radians(o)) for o in (-7.5, -3.75, 0.0, 3.75, 7.5))
             d = d * 100.0 + random.gauss(0, 0.3)
@@ -563,6 +567,15 @@ class SimSpeaker(Speaker):
         log.info("[SPEAKER] beep (%s)", kind)
 
 
+class SimPhoneSpeaker(Speaker):
+    """The ESP32 robot has no speaker: the phone app speaks instead."""
+
+    present = False
+
+    def say(self, text: str) -> None:
+        log.info("[no speaker on the robot] %s", text)
+
+
 class SimBattery(Battery):
     def __init__(self, w: SimWorld, cells: int = 3):
         self.w = w
@@ -576,6 +589,13 @@ class SimBattery(Battery):
 
 
 SIM_PARTS = {
+    "esp32": {"motors": "simulated DRV8833 + 2 TT motors (2WD)",
+              "pan_tilt": "fixed camera: the robot turns to look around",
+              "ultrasonic": "simulated HC-SR04P at the front", "encoders": "not fitted: distance from motor time + MPU6050 heading",
+              "imu": "simulated MPU6050", "environment": "simulated AHT20 + BMP280 · no gas sensor fitted",
+              "camera": "simulated XIAO ESP32S3 Sense camera", "microphone": "simulated XIAO ESP32S3 Sense microphone",
+              "speaker": "no speaker: the phone app speaks and shows alerts",
+              "battery": "not measured: ESP32 on a power bank (see its LEDs), motors on 2 x 18650"},
     "budget": {"motors": "simulated L298N + 4 TT motors, speed on GPIO 13/19",
                "pan_tilt": "fixed camera: the robot turns to look around",
                "ultrasonic": "simulated 3x HC-SR04", "encoders": "not fitted: distance from motor time + MPU6050 heading",
@@ -601,9 +621,10 @@ class _NoBattery(Battery):
 
 
 def create_sim_hardware(cfg: dict) -> Hardware:
-    build = str(cfg.get("sim_build") or "budget").lower()
-    build = build if build in SIM_PARTS else "budget"
-    budget = build == "budget"
+    build = str(cfg.get("sim_build") or "esp32").lower()
+    build = build if build in SIM_PARTS else "esp32"
+    esp32 = build == "esp32"
+    budget = build in ("budget", "esp32")      # both: no encoders, no gas sensor, no battery gauge, fixed camera
     world = load_sim_world(cfg.get("sim_world_path"))
     w = SimWorld(cfg, world)
     hc = cfg.get("hardware", {})
@@ -611,13 +632,13 @@ def create_sim_hardware(cfg: dict) -> Hardware:
     hw = Hardware(
         motors=SimMotors(w),
         pan_tilt=SimPanTilt(w),
-        ultrasonics=SimUltrasonics(w),
+        ultrasonics=SimUltrasonics(w, front_only=esp32),
         encoders=_NoEncoders() if budget else SimEncoders(w),
         imu=SimImu(w),
         env=SimEnv(w, cfg, voc=not budget, gas=not budget),
         camera=SimCamera(w, cfg),
         microphone=SimMicrophone(w),
-        speaker=SimSpeaker(),
+        speaker=SimPhoneSpeaker() if esp32 else SimSpeaker(),
         battery=_NoBattery() if budget else SimBattery(w, cells),
         simulated=True,
         health={k: {"ok": True, "detail": d, "hint": ""} for k, d in SIM_PARTS[build].items()},

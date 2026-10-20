@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
         await S.broker.shutdown()
 
 
-APP_VERSION = "2.5.0"
+APP_VERSION = "3.0.0"
 app = FastAPI(title=f"{settings.product_name} - AI Inspection Robot API", version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
                    allow_methods=["*"], allow_headers=["*"])
@@ -258,7 +258,7 @@ async def users_delete(username: str, user: dict = Depends(require_role("admin")
 # ======================================================================= voice
 # ======================================================================= virtual wiring (Wiring Bench)
 WIRING_FILE = Path(settings.data_dir) / "wiring.json"
-WIRING_SPEC = "reliable-1"        # bench parts changed (reliable RM 500 build): older saved wiring is for parts the robot no longer has
+WIRING_SPEC = "esp32-1"           # bench parts changed (ESP32 robot 3.0): older saved wiring is for parts the robot no longer has
 
 
 def _wiring_saved() -> dict:
@@ -267,7 +267,7 @@ def _wiring_saved() -> dict:
     except Exception:  # noqa: BLE001
         return {"enabled": False, "wires": {}}
     if saved.get("spec") != WIRING_SPEC:
-        return {"enabled": False, "wires": {}, "note": "the bench parts changed for the budget robot: wire it again"}
+        return {"enabled": False, "wires": {}, "note": "the bench parts changed for the ESP32 robot: wire it again"}
     return saved
 
 

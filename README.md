@@ -8,17 +8,22 @@ The logo is an R whose bowl is the robot's eye. To rename, change `PRODUCT_NAME`
 `mobile/app.json`, `BRAND` in `mobile/src/theme.ts` and the `Wordmark` in `mobile/src/components/ui.tsx`.
 Register the trademark (MyIPO, classes 7, 9 and 42) before selling.
 
-The whole system already runs **without any hardware**. A simulated robot drives around a virtual
-corridor with three rooms. It has the same motors, encoders, IMU, ultrasonic sensors, BME680/MQ-135,
-camera and microphone interfaces as the real robot. When your components arrive you change **one line**
-(`simulation: false` in `edge/config.yaml`) and the same code drives the real Raspberry Pi.
+**Raqib 3.0 is the easy ESP32 robot.** The robot itself is only a body: a XIAO ESP32S3 Sense (Wi-Fi, camera and
+microphone on one thumb-size board), two TT motors on a DRV8833, one HC-SR04P distance sensor, an MPU6050 and an
+AHT20 + BMP280, all on one half breadboard (≈ RM 232, no soldering except the XIAO's header pins). **Your laptop is the
+brain:** it runs the server, the AI and the robot program, and talks to the ESP32 over Wi-Fi. The phone app speaks
+and shows the alerts (the robot has no speaker).
+
+The whole system also runs **without any hardware**: a simulated robot drives around a virtual corridor with the
+same sensors, and `start_esp32_emulator.bat` even pretends to be the ESP32 board itself, so the real robot path
+can be tested before the parts arrive.
 
 ```
  ┌──────────────────────┐   HTTPS / WebSocket   ┌────────────────────────────┐   MQTT (TLS)   ┌──────────────────────────┐
- │  React Native app    │ ────────────────────▶ │  FastAPI backend            │ ─────────────▶ │  Raspberry Pi 4 (edge)   │
- │  (mobile/)           │ ◀──────────────────── │  LangGraph InspectionAgent  │ ◀───────────── │  robot/  (edge/)         │
- │  Dashboard · Agent   │      WebRTC video ◀───┼── signalling ───────────────┼──────────────▶ │  100 Hz safety loop      │
- │  Reports · History   │                       │  VLM · ChromaDB · SQLite    │                │  sim  ⇄  real hardware   │
+ │  React Native app    │ ────────────────────▶ │  FastAPI backend            │ ─────────────▶ │  Robot program (edge/)   │
+ │  (mobile/)           │ ◀──────────────────── │  LangGraph InspectionAgent  │ ◀───────────── │  on the PC  ── Wi-Fi ──▶ │
+ │  Dashboard · Agent   │      WebRTC video ◀───┼── signalling ───────────────┼──────────────▶ │  XIAO ESP32S3 (esp32/)   │
+ │  Reports · History   │                       │  VLM · ChromaDB · SQLite    │                │  sim  ⇄  real robot      │
  └──────────────────────┘                       └────────────────────────────┘                └──────────────────────────┘
 ```
 
@@ -26,9 +31,11 @@ camera and microphone interfaces as the real robot. When your components arrive 
 
 | Folder | What it is | Proposal section |
 |---|---|---|
-| `edge/` | Raspberry Pi software: motors, sensors, safety, camera/WebRTC, audio, MQTT, state machine | 2.2.3.1 |
+| `esp32/` | **Robot firmware** for the XIAO ESP32S3 Sense (Arduino) + a ready-to-flash `.bin`: motors, safety stop, sensors, camera, mic | 2.2.2 |
+| `edge/` | Robot program (runs on the PC): navigation, inspections, safety, camera, audio, MQTT, state machine | 2.2.3.1 |
+| `edge/robot/hal/esp32.py` | **ESP32 link**: finds the robot on Wi-Fi and drives it over HTTP | 2.2.2 |
 | `edge/robot/hal/sim.py` | **Simulated robot**: physics, sensors, camera renderer, sound synthesiser | (dev tool) |
-| `edge/robot/hal/real.py` | **Real drivers**: PCA9685, L298N, HC-SR04, MPU6050, BME680, ADS1115+MQ-135, Pi Camera, mic, UPS | 2.2.2 |
+| `edge/robot/hal/real.py` | Older Raspberry Pi drivers (`hardware.board: pi`), kept for the Pi build | 2.2.2 |
 | `edge/hwtest/` | Step-by-step hardware bring-up tests for when the parts arrive | 3.1.4 |
 | `backend/` | FastAPI + LangGraph agent + VLM (GPT-4o / Gemini / Ollama) + ChromaDB memory + JWT/RBAC | 2.2.3.2 |
 | `mobile/` | React Native (Expo, TypeScript) app: Dashboard, Agent chat, Reports, History, Settings | 2.2.3.3 |
@@ -133,8 +140,8 @@ Pair a phone: open **`http://<PC-IP>:8000/connect`** on the PC and tap **Change 
 | "Look up" / "Look left" / "What do you see?" / "Take a photo" | Camera |
 | "Go 5 meters, take a picture and tell me what it is" / "Turn left, go forward 2 m, look up and take a photo, then come back" | Any chain of orders, done in the order you said them. Long moves stop safely at the first obstacle and say where |
 | "What do you see in front of you?" / "What is that?" | Takes a photo and answers in first person: "I see ..." |
-| "Who is talking?" / "Go to the noise and tell them to stop talking" | Listens, turns toward the loudest voice (directional mic), drives closer, takes a photo and, if asked, says "Please stop talking. This is an exam." |
-| "Monitor the exam in Exam Hall for 90 minutes" / "Watch for cheating in Exam Hall and stay in one place" / "How is the exam going?" / "Stop monitoring" | **Exam monitor** (proctoring): patrols the room, looks all the way round and listens. Flags phones, notes / cheat sheets, earpieces, a head turned to a neighbour's paper (3 s), looking down at the lap (8 s), talking, whispering and sudden noises. Goes to the student, says "Please stop cheating ...", and sends you the photo at once (More > Exam monitor; every session prints as a PDF report) |
+| "Who is talking?" / "Go to the noise" | Listens and takes photos around it for you to check (the ESP32's single microphone hears talking but cannot point at the talker; the phone shows the photo and can read out a warning) |
+| "Monitor the exam in Exam Hall for 90 minutes" / "Watch for cheating in Exam Hall and stay in one place" / "How is the exam going?" / "Stop monitoring" | **Exam monitor** (proctoring): patrols the room, looks all the way round and listens. Flags phones, notes / cheat sheets, earpieces, a head turned to a neighbour's paper (3 s), looking down at the lap (8 s), talking, whispering and sudden noises. Goes to the student and sends you the photo at once (the phone can read the warning out) (More > Exam monitor; every session prints as a PDF report) |
 | "Where are you?" / "Help" | Status / list of commands |
 
 **Free wording.** The built-in planner understands the commands above and any chain of them, offline and free.
@@ -187,37 +194,39 @@ Restart the backend after changing `.env`. Check `http://localhost:8000/health` 
 **What the finished robot looks like:** [docs/Raqib_Finished_Robot_3D.pdf](docs/Raqib_Finished_Robot_3D.pdf) and
 `docs/robot_renders/` (3D model, real size; sources in `docs/build_guide/robot3d/`).
 
-**The whole robot on one page:** [docs/Raqib_Full_Wiring_Diagram.pdf](docs/Raqib_Full_Wiring_Diagram.pdf) (A3 poster, also as .png;
-`python docs/build_guide/poster.py`).
+**The whole robot's wiring on one page:** [docs/Raqib_Full_Wiring_Diagram.pdf](docs/Raqib_Full_Wiring_Diagram.pdf)
+(A3 poster, also as .png; `python docs/build_guide/poster.py`).
 
-**Every part pictured, the boards pin by pin, the robot's structure and every wire:**
-[docs/Raqib_Parts_and_Wiring_Atlas.pdf](docs/Raqib_Parts_and_Wiring_Atlas.pdf) (`python docs/build_guide/atlas.py`).
+**What to buy and how to build it:** [docs/Raqib_Robot_Build_Guide.pdf](docs/Raqib_Robot_Build_Guide.pdf), the ESP32
+edition 3.0 (≈ RM 232): XIAO ESP32S3 Sense on a USB power bank, two TT motors on a DRV8833 fed by 2 × 18650, 2WD
+chassis with a caster, HC-SR04P, MPU6050, AHT20 + BMP280, half breadboard. Every step ends with a check.
 
-**What to buy and how to build it:** [docs/Raqib_Robot_Build_Guide.pdf](docs/Raqib_Robot_Build_Guide.pdf), the
-reliable budget edition 2.5 (≈ RM 495): Pi 4 2 GB on its own USB power bank, the motors on a separate 2 x 18650 pack
-(common ground to Pi pin 9), 4WD chassis, three HC-SR04, MPU6050, AHT20 + BMP280, USB webcam with mic, PAM8403 speaker.
-Left out on purpose to make the first build work: the hand-set 5 V converter, wheel encoders (distance comes from
-calibrated motor time + MPU6050 heading, `hwtest.test_motors --calibrate`) and the MQ-135 gas sensor + ADS1115
-(the app shows air quality as "not measured"). The software detects the bigger parts (PCA9685 + servos, Pi Camera,
-BME680, UPS module) by itself if you add them later; gas sensor and encoders need one config line each.
+**Try the wiring first, on the PC:** `start_robot_sim.bat`, then open `http://localhost:8000/bench`. Place the same
+wires on the virtual XIAO; the simulated robot then behaves exactly as that wiring would (a swapped motor wire really
+spins backwards).
 
-Follow **[docs/HARDWARE_BRINGUP.md](docs/HARDWARE_BRINGUP.md)**. In short:
+In short:
 
-1. Flash Raspberry Pi OS 64-bit (add your phone's hotspot as its Wi-Fi). On the PC run `pack_robot_for_pi.bat`, copy
-   `raqib-robot.zip` to the Pi and run `bash edge/scripts/install_pi.sh`. The Pi now runs the robot **and its own
-   server**: no laptop needed, it starts at every power-on, and makes its own Wi-Fi "Raqib-Robot" when no known Wi-Fi is around.
-2. Wire the parts using **[docs/WIRING.md](docs/WIRING.md)**. Remember the voltage dividers on the HC-SR04 echo pins and the common ground wire (L298N GND → Pi pin 9).
-3. Run the bring-up tests in order: `python -m hwtest.i2c_scan` → `test_motors` (then `--deadband`, `--calibrate`) → `test_sensors` → `test_env` → `test_camera_audio`.
-4. Open the app on the same Wi-Fi and tap **Find automatically**. Paste your AI key once in **More > AI settings**.
-5. Measure the real room positions and put them in `zones:` in `config.yaml`.
-6. Open **More > Robot health** in the app. Every part shows green or red; tap a red one for the fix, and
-   **Re-check parts** after plugging one in. Missing parts never stop the robot from starting: it runs with
-   what it has, and without its distance sensors it refuses to drive forward (turning and reversing still work).
+1. `allow_robot_connections.bat` once (lets the robot find the PC).
+2. Flash the firmware: Chrome → https://espressif.github.io/esptool-js/ → Connect → `esp32/raqib_esp32_xiao.bin` at
+   address `0x0` → Program. Details: [esp32/README.md](esp32/README.md).
+3. Connect the robot to your phone's hotspot: join its Wi-Fi "Raqib-Robot" (password `raqib1234`), open
+   http://192.168.4.1 and save your hotspot name and password.
+4. Wire it with the build guide (or [docs/WIRING.md](docs/WIRING.md)), then double-click **`start_my_robot.bat`**.
+   It starts the server and the robot program, which finds the ESP32 by itself.
+5. Open the app on the same Wi-Fi, tap **Find automatically**, then **More > Robot health**: every part shows green
+   or red with the fix. Paste your AI key once in **More > AI settings**.
+6. Calibrate the driving once (`python -m hwtest.test_motors --calibrate`, build guide step 10) and measure the room
+   positions into `zones:` in `edge/config.yaml`. More detail: [docs/HARDWARE_BRINGUP.md](docs/HARDWARE_BRINGUP.md).
+
+Safety lives on the ESP32 itself: it stops the motors 0.6 s after the PC stops talking to it, and refuses to drive
+forward when something is closer than 15 cm (or the distance sensor does not answer).
 
 Before the robot exists, the app's **Try the demo robot** button runs a simulated robot inside the phone, so every
 screen works anywhere with no laptop and no internet.
 
-**Nothing changes in the backend or the mobile app.**
+**Nothing changes in the backend or the mobile app.** The older Raspberry Pi build still works with
+`hardware.board: pi` in `edge/config.yaml`.
 
 ## Production stack (Docker, Mosquitto + TLS)
 
@@ -229,7 +238,7 @@ python tools/generate_certs.py --host <server-ip>   # then enable the 8883 TLS l
 
 ## Notes on changes from the proposal
 
-- **MQ-135 needs an ADC.** The Pi has no analog input, so the gas option uses an **ADS1115** (≈RM 12). The reliable 2.5 build leaves both out; see the upgrades in `docs/WIRING.md`.
+- **The brain moved to the PC (3.0).** A Raspberry Pi made the robot expensive and hard to build. The ESP32 robot is a Wi-Fi body (≈ RM 232) and the laptop runs the same robot software. No speaker and no gas sensor: the phone speaks, and air quality shows as "not measured".
 - **`motor_controller.py` bug fixed.** In Appendix B.1, `stop()` called `GPIO.cleanup()`, so the motors could not run again after the first stop. Cleanup now happens only on shutdown.
 - **"Gemini Pro Flash" is not a real model name.** The configurable default is `gemini-2.5-flash`.
 - **The mobile app gets telemetry from the backend over a WebSocket, not directly from MQTT.** This keeps broker credentials off the phone (least privilege). Commands still travel over MQTT from the backend to the robot.

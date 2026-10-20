@@ -1,4 +1,4 @@
-"""Step 5 - camera snapshot + microphone + speaker.   python -m hwtest.test_camera_audio
+"""Camera snapshot + microphone (+ speaker if the robot has one).   python -m hwtest.test_camera_audio
 Saves test_snapshot.jpg and test_audio.wav in the edge folder.
 """
 import time
@@ -12,9 +12,9 @@ from . import real_cfg
 def main():
     cfg = real_cfg()
     from robot.audio_analyzer import AudioAnalyzer
-    from robot.hal.real import create_real_hardware
+    from robot.hal import create_hardware
 
-    hw = create_real_hardware(cfg)
+    hw = create_hardware(cfg)
     try:
         frame = hw.camera.capture()
         save_jpeg("test_snapshot.jpg", frame)
@@ -28,8 +28,11 @@ def main():
         print("Saved test_audio.wav")
         print("Classifier:", AudioAnalyzer(hw, cfg).listen(1.0))
 
-        hw.speaker.say("Speaker test. Hello from the inspection robot.")
-        time.sleep(3)
+        if getattr(hw.speaker, "present", True):
+            hw.speaker.say("Speaker test. Hello from the inspection robot.")
+            time.sleep(3)
+        else:
+            print("No speaker on this robot: the phone app speaks instead.")
     finally:
         hw.close()
 

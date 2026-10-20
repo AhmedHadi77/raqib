@@ -51,7 +51,7 @@ export default function More() {
             {!serverUrl.startsWith('demo:') ? (
               <>
                 <ListRow icon="chip" title="Wiring Bench"
-                  detail="Wire every sensor to the Raspberry Pi; the simulated robot works only when it is wired right"
+                  detail="Wire every part to the XIAO ESP32S3; the simulated robot works only when it is wired right"
                   onPress={openBench} />
                 <Divider inset={48} />
               </>

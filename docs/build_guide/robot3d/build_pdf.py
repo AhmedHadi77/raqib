@@ -12,22 +12,23 @@ HERE = Path(__file__).resolve().parent
 OUT_PDF = HERE.parent.parent / "Raqib_Finished_Robot_3D.pdf"
 
 PAGES = [
-    ("hero", "The finished robot", "Raqib 2.5, the reliable budget AI inspection robot, fully built and wired: four-wheel drive, two acrylic decks, "
-     "three ultrasonic sensors and a USB webcam at the front, the Raspberry Pi and sensors on top, the power bank, motor driver and motors below."),
-    ("hero_labels", "Every part, labelled", "All parts in their final place. Front of the robot = the side with the webcam."),
-    ("top_labels", "Seen from above: how the top deck is organised",
-     "Front (top of the picture): three HC-SR04 fanned left / centre / right and the webcam on its post. Middle: Raspberry Pi with its "
-     "40-pin header facing the hub board, MPU6050 near the centre, AHT20 at the edge away from the Pi. Back: PAM8403 and the speaker."),
-    ("front", "Front view", "What the robot looks at: the centre sonar straight ahead, the left and right sonars turned 45°, the webcam "
-     "above them. The camera is fixed: the robot turns its whole body to look around."),
-    ("left", "Side view", "Two decks on 40 mm brass standoffs. Bottom deck: the USB power bank (the Pi's own battery) and the L298N motor driver; "
-     "under it the 2 × 18650 motor battery and the four TT motors with their wheels (4WD). Top deck: Pi, sensors, speaker, webcam."),
-    ("rear_labels", "From the back", "The power bank's own USB-C cable goes round the deck edge to the Pi's power socket; the speaker and "
-     "PAM8403 sit at the back; the wires from the Pi go down through the deck to the L298N, including pin 9, the common ground."),
-    ("under_labels", "Underneath", "The 2 × 18650 holder hangs under the bottom deck with its switch reachable and powers only the motors; "
-     "four TT motors, two per side, each pair wired together to one side of the L298N. No encoders: the robot times its motors."),
-    ("close", "Close-up of the top deck", "Colour-coded jumper wires from the Pi's 40-pin header: red 5 V, orange 3.3 V, black GND, blue SDA, "
-     "yellow SCL, green motor direction, amber motor speed, pink / olive / brown sonars."),
+    ("hero", "The finished robot", "Raqib 3.0, the easy ESP32 inspection robot, fully built: one acrylic deck, two-wheel drive with a caster, "
+     "a XIAO ESP32S3 Sense (camera + microphone) standing at the front over one distance sensor, and every other part on a half breadboard. "
+     "No soldering of the sensors, no Raspberry Pi: your laptop is the brain."),
+    ("hero_labels", "Every part, labelled", "All parts in their final place. Front of the robot = the side with the camera and the distance sensor."),
+    ("top_labels", "Seen from above: how the deck is organised",
+     "Front: the HC-SR04P at the edge and the XIAO on its bracket just behind it, camera looking forward. Middle: the half breadboard "
+     "with the DRV8833, MPU6050 and AHT20 + BMP280 plugged in. Back: the USB power bank, which powers only the XIAO."),
+    ("front", "Front view", "What the robot looks at: the distance sensor straight ahead and the camera just above it. "
+     "The camera is fixed: the robot turns its whole body to look around."),
+    ("left", "Side view", "One deck. On top: power bank, breadboard, XIAO and sensor. Under it: the 2 × 18650 motor battery and the "
+     "two TT motors at the front; the caster ball at the back."),
+    ("rear_labels", "From the back", "The power bank's USB-C cable goes to the top of the XIAO. The motor battery's red and black leads come up "
+     "through the deck to the DRV8833 (VM and GND); the DRV8833's GND row is also joined to the 3V3 / GND rails, so everything shares one ground."),
+    ("under_labels", "Underneath", "The 2 × 18650 holder sits under the deck with its switch reachable and powers only the motors. "
+     "Two TT motors at the front (left and right), the caster at the back. No encoders: the robot uses its gyro to turn and times its motors."),
+    ("close", "Close-up of the wiring", "Colour-coded jumper wires from the XIAO down to the breadboard: green / purple motor direction "
+     "(D0–D3), blue SDA (D4), yellow SCL (D5), pink TRIG (D6), cyan ECHO (D7), orange 3V3, black GND."),
 ]
 
 CSS = """@page { size: A4 landscape; margin: 10mm 12mm 12mm; }

@@ -7,9 +7,9 @@ from . import real_cfg
 
 
 def main():
-    from robot.hal.real import create_real_hardware
+    from robot.hal import create_hardware
 
-    hw = create_real_hardware(real_cfg())
+    hw = create_hardware(real_cfg())
     try:
         while True:
             us = hw.ultrasonics.read_cm()

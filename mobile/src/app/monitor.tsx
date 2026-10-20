@@ -45,7 +45,7 @@ const CHECKS: { key: DetectKey; label: string; icon: IconName; note: string }[] 
   { key: 'objects', label: 'Phones, notes, earpieces', icon: 'cellphone', note: 'Seen in the camera' },
   { key: 'head', label: 'Head turned', icon: 'eye-outline', note: 'Looking at another paper for 3 s' },
   { key: 'looking_down', label: 'Looking down', icon: 'arrow-down-circle-outline', note: 'Head bowed to the lap for 8 s' },
-  { key: 'talking', label: 'Talking', icon: 'account-voice', note: 'Finds the voice and goes there' },
+  { key: 'talking', label: 'Talking', icon: 'account-voice', note: 'Hears it and alerts you with a photo' },
   { key: 'whisper', label: 'Whispering', icon: 'ear-hearing', note: 'Quiet voices near the robot' },
   { key: 'noise', label: 'Sudden noises', icon: 'volume-high', note: 'Photo of where it happened' },
 ];
@@ -111,6 +111,7 @@ export default function Monitor() {
   const role = useAppSelector((s) => s.session.role);
   const zones = useAppSelector((s) => s.robot.zones).filter((z) => z.toLowerCase() !== 'home');
   const patrols = useAppSelector((s) => (s.robot.info as any)?.patrols ?? {}) as Record<string, number[][]>;
+  const hasSpeaker = useAppSelector((s) => (s.robot.info as any)?.speaker) !== false;
   const canRun = role === 'operator' || role === 'admin';
   const q = usePolling(() => api.monitor(), 3000, []);
   const caps = usePolling(() => api.monitorCaps(), 60000, []);
@@ -247,8 +248,9 @@ export default function Monitor() {
           <>
             <Body soft style={{ marginTop: 8 }}>
               The robot walks around the exam room, turns its camera all the way round and listens. When it sees a phone,
-              notes or an earpiece, a head turned to another paper, or hears talking, it goes to the student, asks them to
-              stop and sends you a photo. It never tries to recognise who anyone is.
+              notes or an earpiece, a head turned to another paper, or hears talking, it goes closer and
+              {hasSpeaker ? ' asks them to stop and sends you a photo.' : ' sends you a photo on this phone, so you can go over (this robot has no speaker).'}
+              {' '}It never tries to recognise who anyone is.
             </Body>
             {caps.data ? (
               <Card tone="sunken" style={[styles.row, { marginTop: 14, alignItems: 'flex-start' }]}>

@@ -31,9 +31,16 @@ def create_hardware(cfg: dict) -> Hardware:
         log.warning("SIMULATION MODE - no real motors or sensors are used")
         return _with_harness(create_sim_hardware(cfg))
 
+    board = str(cfg.get("hardware", {}).get("board") or "esp32").lower()
+    if board == "esp32":
+        from .esp32 import create_esp32_hardware
+
+        log.info("REAL ROBOT MODE - ESP32 over Wi-Fi (this PC is the brain)")
+        return create_esp32_hardware(cfg)
+
     from .real import create_real_hardware
 
-    log.info("REAL HARDWARE MODE")
+    log.info("REAL HARDWARE MODE - Raspberry Pi")
     return create_real_hardware(cfg)
 
 

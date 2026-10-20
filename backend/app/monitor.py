@@ -312,14 +312,14 @@ class ExamMonitor:
         say = P.FLAGS[f["type"]]["say"]
         warned = False
         try:
-            await tools._cmd("speak", text=f"Excuse me. {say}")
-            warned = True
+            r = await tools._cmd("speak", text=f"Excuse me. {say}")
+            warned = bool((r or {}).get("spoken", True))       # False = this robot has no speaker
         except Exception as e:  # noqa: BLE001
             log.warning("speak failed: %s", e)
         detail = "; ".join(dict.fromkeys(g["detail"] for g in flags))
         summary = (f"{titles.capitalize()}: a student {where} ({detail}). "
-                   + ("I went closer, " if moved >= 0.2 else "") + ("asked them to stop" if warned else "could not speak")
-                   + " and took a photo.")
+                   + ("I went closer, " if moved >= 0.2 else "")
+                   + ("asked them to stop and took a photo." if warned else "took a photo for you to check."))
         await self._record(robot_id, user, {"ts": time.time(), "type": f["type"], "title": f["title"],
                                             "types": [g["type"] for g in flags], "summary": summary, "detail": detail,
                                             "image": image, "close_image": close, "warned": warned, "where": where,

@@ -1,4 +1,4 @@
-// 3D model of the finished Raqib budget robot (units: mm; x = forward, y = up, z = the robot's right side).
+// 3D model of the finished Raqib ESP32 robot 3.0 (units: mm; x = forward, y = up, z = the robot's right side).
 // Parts are real sizes and sit where the build guide places them. Board tops use textures drawn
 // from the same part drawings as the guide (textures.py).
 import * as THREE from './node_modules/three/build/three.module.js';
@@ -78,211 +78,125 @@ const C = { v5: 0xe23b2e, v33: 0xf08a00, gnd: 0x2a2e31, sda: 0x2d6be0, scl: 0xd9
 // ---------------------------------------------------------------------------------------- the robot
 export function buildRobot(scene) {
   const R = new THREE.Group(); scene.add(R);
-  const DECK_W = 210, DECK_D = 150, Y1 = 46, Y2 = 89, T = 3;      // bottom deck y 46..49, top deck y 89..92
-  const deckShape = new THREE.Shape();
-  const rr = 28, x0 = -110, x1 = 100, z0 = -75, z1 = 75;
-  deckShape.moveTo(x0 + rr, z0); deckShape.lineTo(x1 - rr, z0); deckShape.quadraticCurveTo(x1, z0, x1, z0 + rr);
-  deckShape.lineTo(x1, z1 - rr); deckShape.quadraticCurveTo(x1, z1, x1 - rr, z1); deckShape.lineTo(x0 + rr, z1);
-  deckShape.quadraticCurveTo(x0, z1, x0, z1 - rr); deckShape.lineTo(x0, z0 + rr); deckShape.quadraticCurveTo(x0, z0, x0 + rr, z0);
-  // mounting holes
+  const Y1 = 46, T = 3, TY = Y1 + T;                  // one acrylic deck, y 46..49
+  const shape = new THREE.Shape();
+  const x0 = -112, x1 = 98, z0 = -68, z1 = 68, rr = 26;
+  shape.moveTo(x0 + rr, z0); shape.lineTo(x1 - rr, z0); shape.quadraticCurveTo(x1, z0, x1, z0 + rr);
+  shape.lineTo(x1, z1 - rr); shape.quadraticCurveTo(x1, z1, x1 - rr, z1); shape.lineTo(x0 + rr, z1);
+  shape.quadraticCurveTo(x0, z1, x0, z1 - rr); shape.lineTo(x0, z0 + rr); shape.quadraticCurveTo(x0, z0, x0 + rr, z0);
   for (let i = 0; i < 7; i++) for (let j = 0; j < 4; j++) {
-    const h = new THREE.Path(); h.absarc(-90 + i * 28, -45 + j * 30, 2.2, 0, Math.PI * 2, true); deckShape.holes.push(h);
+    const h = new THREE.Path(); h.absarc(-92 + i * 28, -42 + j * 28, 2.2, 0, Math.PI * 2, true); shape.holes.push(h);
   }
-  for (const y of [Y1, Y2]) {
-    const g = new THREE.ExtrudeGeometry(deckShape, { depth: T, bevelEnabled: false, curveSegments: 24 });
-    g.rotateX(Math.PI / 2); g.translate(0, y + T, 0);
-    const deck = new THREE.Mesh(g, M.acrylic); deck.receiveShadow = true; deck.castShadow = true; R.add(deck);
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), new THREE.LineBasicMaterial({ color: 0x7fb0d6 }));
-    R.add(edges);
-  }
-  ANCHORS['Top deck (acrylic)'] = new THREE.Vector3(-105, Y2 + 3, -60);
-  ANCHORS['Bottom deck (acrylic)'] = new THREE.Vector3(-105, Y1 + 3, -60);
+  const g = new THREE.ExtrudeGeometry(shape, { depth: T, bevelEnabled: false, curveSegments: 24 });
+  g.rotateX(Math.PI / 2); g.translate(0, Y1 + T, 0);
+  const deck = new THREE.Mesh(g, M.acrylic); deck.receiveShadow = true; deck.castShadow = true; R.add(deck);
+  R.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), new THREE.LineBasicMaterial({ color: 0x7fb0d6 })));
+  ANCHORS['Acrylic deck'] = new THREE.Vector3(70, TY, -55);
 
-  // standoffs
-  for (const [x, z] of [[-96, -62], [-96, 62], [86, -62], [86, 62]]) cyl(3.2, Y2 - Y1 - T, M.brass, x, (Y1 + T + Y2) / 2, z, R, 'y', 6);
-  ANCHORS['Brass standoffs 40 mm'] = new THREE.Vector3(86, 70, 62);
-
-  // ---------------- 4WD: four wheels + four TT motors under the bottom deck (no encoders: distance = motor time)
+  // ---------------- 2WD: two TT motors + wheels at the front, a caster at the back
   const wheel = (x, zW) => {
     cyl(33, 26, M.rubber, x, 33, zW, R, 'z', 48);
-    for (let k = 0; k < 18; k++) {        // tread ribs
+    for (let k = 0; k < 18; k++) {
       const a = (k / 18) * Math.PI * 2;
-      const rib = box(5, 2, 26.5, M.rubber, x + Math.cos(a) * 33, 33 + Math.sin(a) * 33, zW, R);
-      rib.rotation.z = a + Math.PI / 2;
+      box(5, 2, 26.5, M.rubber, x + Math.cos(a) * 33, 33 + Math.sin(a) * 33, zW, R).rotation.z = a + Math.PI / 2;
     }
     cyl(15, 27, M.yellow, x, 33, zW, R, 'z', 32);
     cyl(4, 30, M.white, x, 33, zW, R, 'z', 16);
   };
   for (const s of [1, -1]) {
-    const zW = s * 91;
-    // front motor: shaft at x = 45, gearbox towards the back, can in the middle
-    wheel(45, zW);
-    box(48, 22, 18, M.yellow, 31, 33, s * 63, R);
-    cyl(10, 22, M.steel, -4, 33, s * 63, R, 'x');
-    cyl(2.7, 10, M.white, 45, 33, s * 50, R, 'z', 12);
-    // rear motor: mirror image, shaft at x = -70
-    wheel(-70, zW);
-    box(48, 22, 18, M.yellow, -56, 33, s * 63, R);
-    cyl(10, 22, M.steel, -21, 33, s * 63, R, 'x');
-    // each side's two motors joined (red-red, black-black), then up to the L298N
-    wires.push(wire([[7, 40, s * 70], [-12, 45, s * 72], [-32, 40, s * 70]], 0xe23b2e, 0.7));
-    wires.push(wire([[7, 37, s * 72], [-12, 43, s * 74], [-32, 37, s * 72]], 0x2a2e31, 0.7));
-    const ox = s > 0 ? 40.5 : 2.5;          // L298N OUT3/OUT4 (right, +z) or OUT1/OUT2 (left, -z) terminal block
-    wires.push(wire([[-12, 45, s * 72], [-6, 48, s * 60], [ox - 4, 54, s * 40], [ox, 60, -16]], 0xe23b2e, 0.7));
-    wires.push(wire([[-12, 43, s * 74], [-8, 47, s * 58], [ox + 2, 54, s * 38], [ox, 60, -12]], 0x2a2e31, 0.7));
+    wheel(40, s * 86);
+    box(64, 22, 18, M.yellow, 22, 34, s * 56, R);                 // gearbox under the deck
+    cyl(10, 24, M.steel, -18, 34, s * 56, R, 'x');                 // motor can
+    wires.push(wire([[-30, 38, s * 52], [-38, 44, s * 40], [-30, 52, s * 30], [-8, TY + 12, s * 14], [6, TY + 11, s * 6]], C.mot, 0.8));
   }
-  ANCHORS['4 wheels + 4 TT gear motors (4WD)'] = new THREE.Vector3(45, 55, 104);
+  ANCHORS['2 TT motors + wheels (2WD)'] = new THREE.Vector3(40, 60, 99);
+  cyl(5, 20, M.steel, -96, 36, 0, R);                              // caster post
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(10, 24, 16), M.steel); ball.position.set(-96, 10, 0); ball.castShadow = true; R.add(ball);
+  box(26, 6, 26, M.steel, -96, 43, 0, R);
+  ANCHORS['Caster wheel'] = new THREE.Vector3(-96, 12, 0);
 
-  // motor battery holder under the bottom deck (cells face down): powers the motors only
-  box(77, 20, 41, M.blackPlastic, -25, Y1 - 10.5, 0, R);
-  for (const dz of [-10, 10]) {
-    cyl(9, 65, new THREE.MeshStandardMaterial({ color: 0x2f7dd1, roughness: 0.4 }), -25, Y1 - 19, dz, R, 'x');
-  }
-  box(8, 6, 10, M.red, 16, Y1 - 10, 16, R);
-  ANCHORS['Motor battery 2 × 18650'] = new THREE.Vector3(-25, 26, 22);
+  // motor battery under the deck
+  box(77, 20, 41, M.blackPlastic, -48, Y1 - 10.5, 0, R);
+  for (const dz of [-10, 10]) cyl(9, 65, new THREE.MeshStandardMaterial({ color: 0x2f7dd1, roughness: 0.4 }), -48, Y1 - 19, dz, R, 'x');
+  box(8, 6, 10, M.red, -8, Y1 - 10, 16, R);
+  ANCHORS['Motor battery 2 × 18650 (under)'] = new THREE.Vector3(-48, 26, 22);
 
-  // ---------------- L298N at the front of the bottom deck
-  const LX = 0, LZ = -22, LY = Y1 + T + 3;
-  const l = pcb('l298n', 43, 43, 0x7d1f1a, R); l.position.set(LX, LY, LZ);
-  for (let i = 0; i < 7; i++) box(2.2, 24, 22, M.black, LX + 12 + i * 3.4, LY + 12, LZ + 11, R);
-  box(26, 3, 22, M.black, LX + 21.5, LY + 1.5, LZ + 11, R);
-  for (const [x, z, w, d] of [[LX + 2.5, LZ + 8, 5, 10], [LX + 40.5, LZ + 8, 5, 10], [LX + 8, LZ + 37, 18, 6]])
-    box(w, 9, d, M.blueTerm, x, LY + 4.5, z, R);
-  pinRow(R, LX + 24, LZ + 38, 6, 2.54, 'x', LY);
-  ANCHORS['L298N motor driver'] = new THREE.Vector3(LX + 21, LY + 24, LZ + 11);
-
-  // motor battery leads: holder -> L298N +12V / GND (nothing else)
-  wires.push(wire([[16, Y1 - 6, 20], [12, Y1 + 8, 22], [LX + 6, LY + 12, LZ + 42], [LX + 6, LY + 9, LZ + 37]], C.bat, 0.9));
-  wires.push(wire([[16, Y1 - 12, 20], [18, Y1 + 6, 24], [LX + 12, LY + 12, LZ + 43], [LX + 12, LY + 9, LZ + 37]], C.gnd, 0.9));
-
-  // ---------------- USB power bank on the bottom deck (the Pi's own battery), 68 x 16 x 140 mm, port towards +z
-  const BX = -58, BZ = 0, BY = Y1 + T + 8;
-  const bank = new THREE.Mesh(new RoundedBoxGeometry(68, 16, 140, 4, 5), M.blackPlastic);
-  bank.position.set(BX, BY, BZ); bank.castShadow = true; bank.receiveShadow = true; R.add(bank);
-  box(56, 0.6, 110, new THREE.MeshStandardMaterial({ color: 0x353a42, roughness: 0.5 }), BX, BY + 8.1, BZ - 6, R);
+  // ---------------- power bank (the ESP32's battery) at the back
+  const bank = new THREE.Mesh(new RoundedBoxGeometry(62, 14, 95, 4, 5), M.blackPlastic);
+  bank.position.set(-78, TY + 7, 0); bank.castShadow = true; bank.receiveShadow = true; R.add(bank);
   for (let k = 0; k < 4; k++) {
-    const led = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), new THREE.MeshBasicMaterial({ color: k < 3 ? 0x3ddc84 : 0x3a3f45 }));
-    led.position.set(BX - 18 + k * 6, BY + 8.4, BZ + 58); R.add(led);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 8), new THREE.MeshBasicMaterial({ color: k < 3 ? 0x3ddc84 : 0x3a3f45 }));
+    led.position.set(-100, TY + 14.3, -30 + k * 6); R.add(led);
   }
-  box(9, 3.4, 2, M.steel, BX + 14, BY, BZ + 70.5, R);                         // USB-C out
-  ANCHORS['USB power bank 10,000 mAh (Pi only)'] = new THREE.Vector3(BX, BY + 9, BZ - 30);
+  box(3, 4, 9, M.steel, -46.5, TY + 7, 30, R);
+  ANCHORS['USB power bank (ESP32 only)'] = new THREE.Vector3(-90, TY + 15, -20);
 
-  // ---------------- top deck
-  const TY = Y2 + T;
-  // Raspberry Pi 4 (85 x 56), header edge towards the middle of the deck
-  const PX = -62, PZ = 4, PY = TY + 5;
-  for (const [x, z] of [[3.5, 3.5], [61.5, 3.5], [3.5, 52.5], [61.5, 52.5]]) cyl(2.5, 5, M.brass, PX + x, TY + 2.5, PZ + z, R, 'y', 6);
-  pcb('pi', 85, 56, 0x145a37, R).position.set(PX, PY, PZ);
-  box(21, 13.5, 16, M.steel, PX + 85 - 8, PY + 6.75, PZ + 10.5, R);          // ethernet
-  box(17, 15.5, 13, M.steel, PX + 85 - 6.5, PY + 7.75, PZ + 29, R);           // USB 3
-  box(17, 15.5, 13, M.steel, PX + 85 - 6.5, PY + 7.75, PZ + 47, R);           // USB 2
-  box(15, 1.5, 15, M.alu, PX + 29.5, PY + 0.75, PZ + 29.5, R);
-  for (let i = 0; i < 6; i++) box(1.4, 9, 15, M.alu, PX + 23.5 + i * 2.5, PY + 5, PZ + 29.5, R);   // CPU heatsink
-  box(9, 3.2, 7.5, M.steel, PX + 11.5, PY + 1.6, PZ + 54, R);                 // USB-C
-  cyl(3, 7, M.black, PX + 54, PY + 3, PZ + 54, R, 'z');                       // audio jack
-  pinRow(R, PX + 10.5, PZ + 3.6, 20, 2.54, 'x', PY); pinRow(R, PX + 10.5, PZ + 6.1, 20, 2.54, 'x', PY);
-  ANCHORS['Raspberry Pi 4 (2 GB)'] = new THREE.Vector3(PX + 30, PY + 9, PZ + 40);
-  const pin = (n) => {                     // header pin tip (odd pins on the inner row)
-    const i = Math.floor((n - 1) / 2);
-    return [PX + 10.5 + i * 2.54, PY + 6.5, PZ + (n % 2 ? 3.6 : 6.1)];
-  };
+  // ---------------- half breadboard (the wiring hub), across the robot
+  const BX = -42, BZ = -27.5, BH = 9;
+  const bb = new THREE.Group(); bb.position.set(BX, TY, BZ); R.add(bb);
+  box(83, BH, 55, new THREE.MeshStandardMaterial({ color: 0xf3f1ea, roughness: 0.7 }), 41.5, BH / 2, 27.5, bb);
+  const top = pcb('bread', 83, 55, 0xcdc7b5, bb, 0.2); top.position.y = BH + 0.2;
+  ANCHORS['Half breadboard (wiring hub)'] = new THREE.Vector3(BX + 8, TY + BH, BZ + 50);
+  const BT = TY + BH;
+  // DRV8833, MPU6050, AHT20 plugged into it
+  pcb('drv', 18, 22, 0x4f1b5c, R).position.set(BX + 6, BT + 5, BZ + 8);
+  ANCHORS['DRV8833 motor driver'] = new THREE.Vector3(BX + 15, BT + 6, BZ + 18);
+  pcb('mpu', 21, 16, 0x163f80, R).position.set(BX + 34, BT + 5, BZ + 8);
+  ANCHORS['MPU6050 motion sensor'] = new THREE.Vector3(BX + 44, BT + 6, BZ + 15);
+  pcb('aht', 15, 12, 0x4a2a70, R).position.set(BX + 62, BT + 5, BZ + 34);
+  ANCHORS['AHT20 + BMP280 climate'] = new THREE.Vector3(BX + 69, BT + 6, BZ + 40);
+  for (const [x, z, n] of [[BX + 6, BZ + 30, 6], [BX + 34, BZ + 24, 8], [BX + 62, BZ + 46, 4]]) {
+    for (let i = 0; i < n; i++) box(2.4, 5, 2.4, M.black, x + 1.3 + i * 2.54, BT + 2.5, z, R);
+  }
 
-  // power bank -> its own USB-C cable -> Pi USB-C (goes round the deck edge)
-  wires.push(wire([[BX + 14, BY, BZ + 72], [BX + 14, BY + 2, BZ + 82], [BX + 10, (BY + PY) / 2, BZ + 84], [PX + 11.5, PY + 4, PZ + 70],
-    [PX + 11.5, PY + 2, PZ + 62], [PX + 11.5, PY + 1.6, PZ + 58]], C.usb, 1.8));
-  ANCHORS['USB-C cable → Pi power'] = new THREE.Vector3(BX + 10, (BY + PY) / 2, BZ + 84);
+  // ---------------- XIAO ESP32S3 Sense standing on a bracket, camera looking forward over the sonar
+  const XX = 66, XB = TY + 30;                         // bracket top
+  box(4, 30, 26, new THREE.MeshStandardMaterial({ color: 0xe9eef3, roughness: 0.5 }), XX - 6, TY + 15, 0, R);
+  box(14, 2, 26, new THREE.MeshStandardMaterial({ color: 0xe9eef3, roughness: 0.5 }), XX - 2, TY + 1, 0, R);
+  const xiao = new THREE.Group(); xiao.position.set(XX, XB, 0); R.add(xiao);
+  const xb = pcb('xiao', 17.5, 21, 0x1b1d20, xiao, 1.2);   // board, top face pointing backwards (-x)
+  xb.rotation.set(0, 0, Math.PI / 2); xb.position.set(0, 0, -8.75);
+  xb.rotation.set(0, Math.PI / 2, Math.PI / 2);
+  xb.position.set(-0.6, 0, 8.75);
+  box(4, 21, 17.5, new THREE.MeshStandardMaterial({ color: 0x16191c, roughness: 0.5 }), 2.6, 10.5, 0, xiao);   // Sense board
+  box(3, 8, 8, M.black, 6, 12, 0, xiao);                                                                        // camera module
+  cyl(3, 2.4, M.lens, 8, 12, 0, xiao, 'x', 24);
+  box(3.2, 3, 9, M.steel, -0.6, 22, 0, xiao);                                                                  // USB-C on top
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff9a2e }));
+  led.position.set(-1.6, 3, 5); xiao.add(led);
+  ANCHORS['XIAO ESP32S3 Sense (camera forward)'] = new THREE.Vector3(XX + 8, XB + 12, 0);
+  // USB-C cable from the power bank up to the XIAO
+  wires.push(wire([[-46, TY + 7, 30], [-30, TY + 16, 46], [20, TY + 36, 40], [XX - 1, XB + 34, 10], [XX - 0.6, XB + 24, 0]], C.usb, 1.6));
 
-  // hub board (perfboard) on the right side: rails + 3 sonar echo dividers
-  const HX = -58, HZ = -72, HW = 70, HD = 40;
-  for (const [x, z] of [[3, 3], [HW - 3, 3], [3, HD - 3], [HW - 3, HD - 3]]) cyl(2.2, 4, M.brass, HX + x, TY + 2, HZ + z, R, 'y', 6);
-  pcb('hub', HW, HD, 0x9c7f42, R).position.set(HX, TY + 4, HZ);
-  ANCHORS['Hub board (rails + 3 echo dividers)'] = new THREE.Vector3(HX + 35, TY + 6, HZ + 20);
-  const rail = (i, x) => [HX + x, TY + 6, HZ + 3.6 + i * 2.9];          // 0 5V,1 3V3,2 GND,3 SDA,4 SCL
-  // Pi -> hub rails
-  const toRail = [[2, 0, C.v5], [1, 1, C.v33], [6, 2, C.gnd], [3, 3, C.sda], [5, 4, C.scl]];
-  toRail.forEach(([n, i, c], k) => {
-    const p = pin(n);
-    wires.push(wire([p, [p[0], p[1] + 10 + k, p[2] - 2], [p[0] - 2, TY + 16 + k, HZ + HD + 6], rail(i, 60 - k * 3)], c));
+  // ---------------- HC-SR04P at the front edge, below the camera
+  const sg = new THREE.Group(); sg.position.set(92, TY, 0); R.add(sg);
+  box(6, 2, 40, M.black, -3, 1, 0, sg);
+  box(2, 24, 40, M.black, -6.5, 12, 0, sg);
+  const sb = pcb('hcsr04', 45, 20, 0x163f80, sg);
+  sb.setRotationFromMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -1, 0)));
+  sb.position.set(-3, 25, 22.5);
+  for (const dz of [-13, 13]) {
+    cyl(8, 12, M.steel, 3, 13, dz, sg, 'x', 32);
+    cyl(6.4, 12.4, new THREE.MeshStandardMaterial({ color: 0x3a3f45, roughness: 0.9 }), 3.3, 13, dz, sg, 'x', 32);
+  }
+  ANCHORS['HC-SR04P distance sensor (3.3 V)'] = new THREE.Vector3(98, TY + 14, 18);
+
+  // ---------------- jumpers: XIAO pins down to the breadboard (8 signals + 3V3 + GND)
+  const cols = [C.sig, C.sig, 0x8a55e8, 0x8a55e8, C.sda, C.scl, C.s3, C.s4, C.v33, C.gnd];
+  cols.forEach((c, i) => {
+    const zz = -7.5 + (i % 5) * 3.6, side = i < 5 ? -1 : 1;
+    const start = [XX - 2, XB + 2 + (i % 5) * 3, side * 9];
+    const end = [BX + 10 + i * 7.2, BT + 1, BZ + (i < 5 ? 3 : 52)];
+    wires.push(wire([start, [XX - 14, XB - 6, side * 14], [30, TY + 24, zz * 2], [end[0] + 6, BT + 12, end[2] + (i < 5 ? 6 : -6)], end], c, 0.55));
   });
-
-  // MPU6050 in front of the hub
-  pcb('mpu', 21, 16, 0x163f80, R).position.set(22, TY + 3, -42);
-  ANCHORS['MPU6050 motion sensor'] = new THREE.Vector3(32, TY + 6, -34);
-  // I2C + power wires from the hub to the MPU
-  [[0, C.v33, 1], [1, C.gnd, 2], [2, C.scl, 4], [3, C.sda, 3]].forEach(([k, c, ri]) => {
-    wires.push(wire([[24 + k * 2.54, TY + 6, -27], [14, TY + 14, -36 + k], rail(ri, 64)], c, 0.6));
+  // sonar to the breadboard
+  [C.v33, C.s3, C.s4, C.gnd].forEach((c, i) => {
+    wires.push(wire([[88, TY + 3, -4 + i * 2.6], [70, TY + 8, -12 + i * 2], [42, TY + 14, -16 + i * 3], [BX + 70 + i * 2.6, BT + 1, BZ + 4]], c, 0.55));
   });
-
-  // AHT20 + BMP280 (front left), PAM8403 + speaker (back)
-  pcb('aht', 15, 12, 0x4a2a70, R).position.set(40, TY + 3, 50);
-  ANCHORS['AHT20 + BMP280 climate'] = new THREE.Vector3(47, TY + 5, 56);
-  pcb('pam', 21, 13, 0x145a37, R).position.set(-80, TY + 3, 5);
-  ANCHORS['PAM8403 amplifier'] = new THREE.Vector3(-70, TY + 5, 12);
-  const spk = cyl(20, 6, M.black, -96, TY + 3, 6, R, 'y', 48);
-  cyl(14, 1, new THREE.MeshStandardMaterial({ color: 0x3b4048, roughness: 0.8 }), -96, TY + 6.5, 6, R, 'y', 40);
-  cyl(5, 2, M.steel, -96, TY + 7.5, 6, R);
-  ANCHORS['Speaker 3 W'] = new THREE.Vector3(-96, TY + 8, 6);
-  // audio cable Pi jack -> PAM, wires to hub
-  wires.push(wire([[PX + 54, PY + 3, PZ + 58], [PX + 50, PY + 12, PZ + 66], [-80, TY + 14, 30], [-76, TY + 6, 16]], C.audio, 1.1));
-  wires.push(wire([[-60, TY + 5, 8], [-56, TY + 12, -10], rail(0, 8)], C.v5, 0.6));
-  wires.push(wire([[-60, TY + 5, 10], [-54, TY + 12, -12], rail(2, 6)], C.gnd, 0.6));
-  wires.push(wire([[-80, TY + 5, 12], [-90, TY + 8, 10], [-92, TY + 6, 8]], 0xe23b2e, 0.5));
-  // AHT to the hub
-  [[0, C.v33, 1], [1, C.gnd, 2], [2, C.scl, 4], [3, C.sda, 3]].forEach(([k, c, ri]) =>
-    wires.push(wire([[41 + k * 3.5, TY + 4, 62], [30, TY + 20, 30 + k], [0, TY + 20, -10], rail(ri, 40 + k)], c, 0.6)));
-
-  // ---------------- front: three HC-SR04 on brackets, webcam on a post
-  const sonar = (x, z, angle, name, trigPin, echoPin, color) => {
-    const g = new THREE.Group(); g.position.set(x, TY, z); g.rotation.y = angle; R.add(g);
-    box(6, 2, 40, M.black, -3, 1, 0, g);                  // bracket foot
-    box(2, 24, 40, M.black, -6.5, 12, 0, g);              // bracket upright
-    const b = pcb('hcsr04', 45, 20, 0x163f80, g);
-    b.setRotationFromMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -1, 0)));
-    b.position.set(-3, 25, 22.5);
-    for (const dz of [-13, 13]) {
-      cyl(8, 12, M.steel, 3, 13, dz, g, 'x', 32);
-      cyl(6.4, 12.4, new THREE.MeshStandardMaterial({ color: 0x3a3f45, roughness: 0.9 }), 3.3, 13, dz, g, 'x', 32);
-    }
-    const w = new THREE.Vector3(); g.updateMatrixWorld(); w.set(-6, 3, 0).applyMatrix4(g.matrixWorld);
-    ANCHORS[name] = new THREE.Vector3(6, 25, 0).applyMatrix4(g.matrixWorld);
-    // 4 wires from the back of the sonar: VCC, Trig, Echo, GND
-    const back = (k) => new THREE.Vector3(-6, 3, -4 + k * 2.6).applyMatrix4(g.matrixWorld).toArray();
-    const tp = pin(trigPin), ep = pin(echoPin);
-    wires.push(wire([back(0), [back(0)[0] - 18, TY + 18, back(0)[2] * 0.6], [0, TY + 16, -20], rail(0, 64)], C.v5, 0.6));
-    wires.push(wire([back(3), [back(3)[0] - 18, TY + 16, back(3)[2] * 0.6], [2, TY + 14, -22], rail(2, 64)], C.gnd, 0.6));
-    wires.push(wire([back(1), [back(1)[0] - 20, TY + 24, back(1)[2] * 0.5], [tp[0] + 4, tp[1] + 16, tp[2] - 6], tp], color, 0.6));
-    wires.push(wire([back(2), [back(2)[0] - 20, TY + 22, back(2)[2] * 0.5], [ep[0] + 4, ep[1] + 14, ep[2] - 7], ep], color, 0.6));
-  };
-  sonar(92, 0, 0, 'HC-SR04 centre', 18, 22, C.s3);
-  sonar(76, -50, Math.PI / 4, 'HC-SR04 left (45°)', 32, 36, C.s5);     // +45° about y turns it towards -z = left
-  sonar(76, 50, -Math.PI / 4, 'HC-SR04 right (45°)', 38, 40, C.s6);
-
-  // webcam on a post behind the centre sonar
-  cyl(14, 3, M.blackPlastic, 66, TY + 1.5, 0, R);
-  cyl(3.5, 46, M.blackPlastic, 66, TY + 24, 0, R, 'y', 16);
-  const cam = new THREE.Mesh(new RoundedBoxGeometry(24, 26, 62, 4, 9), M.blackPlastic);
-  cam.position.set(68, TY + 58, 0); cam.castShadow = true; R.add(cam);
-  cyl(9, 4, M.steel, 80.5, TY + 58, 0, R, 'x', 40);
-  cyl(7, 4.4, M.lens, 81, TY + 58, 0, R, 'x', 40);
-  const glint = new THREE.Mesh(new THREE.SphereGeometry(1.8, 12, 8), new THREE.MeshBasicMaterial({ color: 0x9fc3ff }));
-  glint.position.set(83, TY + 60.5, 2.5); R.add(glint);
-  const led = new THREE.Mesh(new THREE.SphereGeometry(1.2, 12, 8), new THREE.MeshBasicMaterial({ color: 0x55e07a }));
-  led.position.set(80.3, TY + 58, 20); R.add(led);
-  for (let k = 0; k < 4; k++) box(0.8, 0.8, 0.8, M.black, 80.3, TY + 58, -18 - k * 2.2, R);
-  ANCHORS['USB webcam + microphone (fixed)'] = new THREE.Vector3(80, TY + 70, 0);
-  wires.push(wire([[56, TY + 50, 0], [40, TY + 30, 10], [PX + 85 + 6, PY + 9, PZ + 29]], C.usb, 1.4));
-
-  // ---------------- Pi -> L298N through a hole in the top deck (pin 9 = the common ground)
-  const hole = [-8, TY, -6];
-  const sigs = [[9, C.gnd, 0], [11, C.sig, 1], [13, C.sig, 2], [15, C.sig, 3], [16, C.sig, 4], [33, C.pwm, -1], [35, C.pwm, 5]];
-  sigs.forEach(([n, c, k], j) => {
-    const p = pin(n);
-    const tgt = [LX + 24 + Math.max(0, k) * 2.54, LY + 6, LZ + 38];
-    if (n === 9) { tgt[0] = LX + 13; tgt[1] = LY + 9; tgt[2] = LZ + 37; }
-    wires.push(wire([p, [p[0], p[1] + 8, p[2] - 3], [hole[0] + j, TY + 4, hole[2] - j], [hole[0] + j, TY - 10, hole[2] - j],
-      [tgt[0], LY + 18, tgt[2] + 4], tgt], c, 0.6));
-  });
-  ANCHORS['Jumper wires (colour-coded)'] = new THREE.Vector3(-20, TY + 22, -8);
+  // battery leads up to the DRV8833
+  wires.push(wire([[-8, Y1 - 6, 20], [-14, Y1 + 6, 22], [-28, BT + 8, 10], [BX + 7, BT + 6, BZ + 5]], C.bat, 0.8));
+  wires.push(wire([[-8, Y1 - 12, 20], [-16, Y1 + 4, 24], [-30, BT + 6, 12], [BX + 9.5, BT + 6, BZ + 5]], C.gnd, 0.8));
+  ANCHORS['Jumper wires (colour-coded)'] = new THREE.Vector3(30, TY + 24, 0);
 
   wires.forEach((w) => R.add(w));
   return R;

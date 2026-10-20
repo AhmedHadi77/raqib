@@ -3,13 +3,13 @@
 # =====================================================================
 #  THE ONE SWITCH THAT MATTERS WHEN YOUR HARDWARE ARRIVES:
 #     simulation: true   -> runs anywhere (laptop), fake robot + fake sensors
-#     simulation: false  -> runs on the Raspberry Pi with the real components
-#  You can also override it from the command line:  python -m robot.main --real
+#     simulation: false  -> drives the real robot: the ESP32 over Wi-Fi (hardware.board: esp32)
+#  You can also override it from the command line:  python -m robot.main --esp32
 # =====================================================================
 
 robot_id: robot01
 simulation: true
-sim_build: budget         # which robot the simulator imitates: budget (RM 500 build) | full (servos, BME680, UPS)
+sim_build: esp32          # which robot the simulator imitates: esp32 (the 3.0 robot) | budget (Raspberry Pi) | full
 
 mqtt:
   host: localhost          # IP / hostname of the machine running the broker (your laptop or cloud VM)
@@ -38,9 +38,9 @@ motion:
   motor_deadband: 0.15     # real motors: below this power they do not turn (used by time-based distance)
   default_speed: 0.6       # fraction of max (0..1)
   turn_speed: 0.5
-  min_power: 0.25          # lowest wheel power that still moves the robot (real 4WD skid steering: about 0.35-0.45)
+  min_power: 0.25          # lowest wheel power that still moves the robot (python -m hwtest.test_motors --deadband)
   wheel_diameter_m: 0.065
-  wheel_base_m: 0.15
+  wheel_base_m: 0.135      # 2WD chassis: distance between the two wheels
   encoder_ticks_per_rev: 20      # slots on the photoelectric encoder disc
   heading_kp: 0.02               # heading-hold gain while driving straight
   avoid_max_attempts: 3          # reactive avoidance retries during go_to_zone
@@ -63,7 +63,7 @@ environment:
   mq135_hazard_ppm: 2000
 
 camera:
-  hfov_deg: 62.2           # Pi Camera v2 horizontal field of view (v3: 66)
+  hfov_deg: 66             # XIAO ESP32S3 Sense camera (OV2640/OV3660) horizontal field of view
   sim_source: render       # simulation only: render | webcam (use the PC's webcam as the robot camera)
   sim_webcam_index: 0
   width: 640
@@ -77,7 +77,7 @@ audio:
   window_s: 1.0
   model_path: models/campus-audio.eim   # Edge Impulse model (download on the Pi)
   db_calibration_offset: 83.0           # dBFS -> approx dB SPL; calibrate with a phone SPL meter
-  directional_mic: true                 # cardioid mic facing forward -> sound_scan can find where talking comes from
+  directional_mic: false                # the XIAO's microphone hears all round: talking is heard, not pointed at
   label_map:                            # Edge Impulse label -> canonical class
     quiet: quiet_room
     quiet_room: quiet_room
@@ -114,6 +114,12 @@ webots:
 # Real hardware wiring (BCM GPIO numbers / I2C addresses). See docs/WIRING.md
 # ---------------------------------------------------------------------
 hardware:
+  board: esp32                 # esp32 = XIAO ESP32S3 Sense over Wi-Fi (this PC is the brain) | pi = Raspberry Pi build
+  esp32_host: auto             # auto = find it (raqib.local or its Wi-Fi broadcast); or its address, e.g. 192.168.43.57
+  esp32_max_duty: 0.7          # 2 x 18650 = 8.4 V, TT motors are 3-6 V: full power = 70 % PWM
+  esp32_deadman_ms: 600        # the robot stops by itself if this PC goes quiet for this long
+  esp32_audio_port: auto      # 82 on the robot (auto); the emulator uses its own port + 2
+  # ----- everything below is for the Raspberry Pi build (board: pi) -----
   i2c_bus: 1
   pca9685_address: 0x40
   pca9685_freq_hz: 50          # shared by servos (need 50 Hz) and L298N enable PWM
@@ -121,7 +127,7 @@ hardware:
   motor_pwm_hz: 500
   motor_ramp_per_s: 4.0        # soft start: 0 -> full power in 0.25 s (stopping is always immediate)
   ultrasonic_gap_s: 0.012      # quiet time between the sonars' pings (stops cross-talk)
-  motor_left:  {pwm_channel: 0, pwm_pin: 13, in1: 17, in2: 27, invert: false}    # L298N ENA / IN1 / IN2
+  motor_left:  {pwm_channel: 0, pwm_pin: 13, in1: 17, in2: 27, invert: false}    # invert: true = that wheel turns backwards (ESP32 too); pins = Pi build
   motor_right: {pwm_channel: 1, pwm_pin: 19, in1: 22, in2: 23, invert: false}    # L298N ENB / IN3 / IN4
   pan_tilt: auto               # auto = servos on the PCA9685 if present, else fixed camera (robot turns to look)
   servo_pan:  {channel: 14, min_us: 500, max_us: 2400}

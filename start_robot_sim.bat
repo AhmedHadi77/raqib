@@ -1,5 +1,5 @@
 @echo off
-REM Simulated robot (same code that runs on the Raspberry Pi, with simulation: true)
+REM Simulated ESP32 robot (the same brain program that drives the real robot, with simulation: true)
 cd /d "%~dp0edge"
 ..\.venv\Scripts\python.exe -m robot.main --sim
 pause

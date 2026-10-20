@@ -157,7 +157,8 @@ class RobotApp:
             "health": self.hw.health,
             "faults": self.hw.faults(),
             "server": self.mqtt.server[0] if self.mqtt and getattr(self.mqtt, "server", None) else None,
-            "software": {"version": "2.5.0"},
+            "software": {"version": "3.0.0"},
+            "speaker": bool(getattr(self.hw.speaker, "present", True)),
         }
 
     def _profile(self) -> str:
@@ -341,6 +342,13 @@ class RobotApp:
     def _turn(self, angle_deg: float, cancel: threading.Event) -> dict:
         target = self.sensors.heading + angle_deg
         turn_speed = float(self.mcfg.get("turn_speed", 0.5))
+        local = getattr(self.hw.motors, "turn_by", None)
+        if local is not None and self.state.can_move():
+            # ESP32 robot: the robot turns itself with its own gyro (no Wi-Fi delay in the loop)
+            status = local(angle_diff(target, self.sensors.heading), turn_speed, cancel)
+            time.sleep(0.12)                      # let the next status (heading) arrive
+            if status != "error":
+                return {"status": status, "heading_deg": round(self.sensors.heading, 1)}
         timeout = time.monotonic() + abs(angle_deg) / 30.0 + 4.0
         status = "ok"
         while True:
@@ -639,7 +647,8 @@ class RobotApp:
 
     def cmd_speak(self, text: str):
         self.hw.speaker.say(str(text)[:300])
-        return {"spoken": True}
+        # the ESP32 robot has no speaker: the phone app shows / reads the message instead
+        return {"spoken": bool(getattr(self.hw.speaker, "present", True)), "text": str(text)[:300]}
 
     def cmd_set_privacy(self, enabled: bool):
         self.camera.privacy = bool(enabled)

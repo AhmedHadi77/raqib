@@ -25,16 +25,16 @@ const rim = new THREE.DirectionalLight(0xffffff, 0.6); rim.position.set(-200, 12
 scene.fog = new THREE.Fog(0xeef2f6, 1400, 3200);
 const ground = new THREE.Mesh(new THREE.CircleGeometry(6000, 64), new THREE.MeshStandardMaterial({ color: 0xe3e8ee, roughness: 0.95 }));
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-await loadTextures(['pi', 'l298n', 'hcsr04', 'mpu', 'aht', 'pam', 'battery', 'hub']);
+await loadTextures(['hcsr04', 'mpu', 'aht', 'drv', 'bread', 'xiao', 'battery']);
 buildRobot(scene);
 const VIEWS = {   // camera position, target, fov
-  hero: [[560, 390, 470], [-8, 72, 0], 20],
-  front: [[760, 150, 0], [0, 78, 0], 19],
-  rear: [[-560, 410, -450], [-12, 72, 0], 20],
-  left: [[0, 110, 820], [-5, 72, 0], 19],
-  top: [[0.01, 980, 0], [-5, 60, 0], 19],
-  under: [[300, -40, 520], [-10, 40, 0], 21],
-  close: [[330, 360, 200], [-25, 100, 0], 17],
+  hero: [[470, 330, 400], [-5, 42, 0], 20],
+  front: [[640, 120, 0], [0, 50, 0], 19],
+  rear: [[-470, 350, -380], [-8, 42, 0], 20],
+  left: [[0, 90, 680], [-5, 45, 0], 19],
+  top: [[0.01, 820, 0], [-5, 40, 0], 19],
+  under: [[-420, -110, 380], [-20, 30, 0], 22],
+  close: [[300, 280, 200], [-10, 58, 0], 22],
 };
 const [pos, tgt, fov] = VIEWS[view];
 const cam = new THREE.PerspectiveCamera(fov, W / H, 1, 3000);

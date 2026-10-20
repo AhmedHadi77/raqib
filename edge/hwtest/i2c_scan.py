@@ -7,10 +7,30 @@ NAMES = {0x38: "AHT20 temperature/humidity (budget build)", 0x40: "PCA9685 PWM (
          0x76: "BME680 or BMP280 (climate / pressure)", 0x77: "BME680 or BMP280 (climate / pressure)"}
 
 
+def esp32_scan(cfg):
+    """The ESP32 checks its own I2C bus: ask it what answers."""
+    from robot.hal.esp32 import _get_json, resolve_host
+
+    host = resolve_host(cfg["hardware"].get("esp32_host", "auto"))
+    s = _get_json(host, "/status") if host else None
+    if not s:
+        print("The ESP32 robot is not answering on Wi-Fi. Is it on (power bank) and on the same Wi-Fi as this PC?")
+        return
+    print(f"ESP32 robot at {host}, firmware {s.get('fw')}, Wi-Fi {s.get('ssid')}")
+    for name, ok in (("MPU6050 motion sensor (0x68)", s.get("imu_ok")), ("AHT20 temperature/humidity (0x38)", s.get("aht_ok")),
+                     ("BMP280 air pressure (0x77/0x76)", s.get("bmp_ok"))):
+        print(f"  [{'OK ' if ok else 'MISSING'}] {name}")
+    if not (s.get("imu_ok") and s.get("aht_ok")):
+        print("\nMissing parts: VCC to 3V3, GND to GND, SDA to D4, SCL to D5 (both boards share these four wires).")
+
+
 def main():
+    cfg = real_cfg()
+    if str(cfg["hardware"].get("board", "esp32")).lower() == "esp32":
+        return esp32_scan(cfg)
     from smbus2 import SMBus
 
-    hw = real_cfg()["hardware"]
+    hw = cfg["hardware"]
     ups = hw.get("ups_ina219_address")
     if ups is not None:
         NAMES.setdefault(int(ups), "UPS battery gauge (INA219, full build)")

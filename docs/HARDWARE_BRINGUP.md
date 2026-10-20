@@ -1,142 +1,129 @@
-# Hardware bring-up: from boxes of parts to a working robot
+# Hardware bring-up: from a bag of parts to a working robot (ESP32 robot 3.0)
 
-> The full illustrated build guide (shopping list ≈ RM 495, power and wiring diagrams, assembly) is
-> `docs/Raqib_Robot_Build_Guide.pdf`. Reliable budget build 2.5: the Pi on its own USB power bank, the motors on
-> 2 x 18650 (common ground L298N GND → Pi pin 9), motor speed on GPIO 13/19 (pins 33/35), no servos, no wheel encoders
-> (distance from calibrated motor time + MPU6050 heading), no gas sensor, AHT20 + BMP280, USB webcam, speaker amp on
-> the Pi audio jack. When the real robot is running, start the PC with
-> `start_backend.bat` (not `start_all.bat`, which also starts the simulated robot01), and set a
-> vision AI provider in `backend/.env` so photos are analysed.
+> The illustrated build guide (shopping list ≈ RM 232, a picture of every part, 11 steps each ending with a check)
+> is `docs/Raqib_Robot_Build_Guide.pdf`; every wire is in [WIRING.md](WIRING.md). The robot is a XIAO ESP32S3
+> Sense body; **your laptop is the brain** (server + AI + robot program). The phone app speaks and shows alerts.
 
-Do these steps **in order**. Each one checks one subsystem before you depend on it.
-Run the commands on the Raspberry Pi, inside `edge/` with the venv active (`source .venv/bin/activate`).
-
-## 0. Prepare the Pi (≈ 30 min, once)
-
-The finished robot needs **no laptop**: the Raspberry Pi runs the robot program *and* its own server, and the phone
-app talks straight to the robot.
-
-1. Flash **Raspberry Pi OS (64-bit)** with Raspberry Pi Imager. In the imager's settings set the hostname (`robot01`),
-   enable SSH, and add a Wi-Fi: your **phone's hotspot** is the best choice (the robot then has internet for the AI
-   wherever you go). Home or campus Wi-Fi works too.
-2. On the PC, double-click `pack_robot_for_pi.bat`. It makes `raqib-robot.zip` (robot program + server; your AI key is
-   not included). Copy it to the Pi (USB stick, or WinSCP to `robot01.local`).
-3. On the Pi: `unzip raqib-robot.zip -d ~/raqib && cd ~/raqib && bash edge/scripts/install_pi.sh`
-4. `sudo reboot`
-
-From then on, at every power-on the robot starts its server and program by itself and says its address out loud.
-Wi-Fi: it joins a known network; if none is in range for a minute it makes its **own Wi-Fi "Raqib-Robot"**
-(password `raqib1234`, robot address 10.42.0.1). Either way, open the app and tap **Find automatically**.
-Add another network later: `sudo nmcli dev wifi connect "NAME" password "PASSWORD"`.
-
-> While you run the tests below, stop the background robot program so the two don't fight over the pins:
-> `sudo systemctl stop inspection-robot`. Start it again with `sudo systemctl start inspection-robot`.
-
-## 1. I²C devices
+Do these steps **in order**. Each one checks one part before you depend on it. The tests run **on the PC**, in a
+command window inside the project's `edge` folder:
 
 ```
-python -m hwtest.i2c_scan
+cd "C:\final year app\edge"
+..\.venv\Scripts\python -m hwtest.i2c_scan
 ```
 
-Every expected device should show `[OK ]`: MPU6050 0x68 and the AHT20 0x38 + BMP280 0x77/0x76 (no ADS1115 in this build).
-If one is MISSING, check SDA/SCL, 3.3 V and the address. It also tells you that motor speed comes from GPIO 13/19
-(no PCA9685 on the budget robot).
+Close `start_my_robot.bat` (or `start_robot_esp32.bat`) while you run a test, so the two don't both drive the robot.
+
+## 0. Flash the firmware and join Wi-Fi (≈ 15 min, once)
+
+1. Flash `esp32/raqib_esp32_xiao.bin` from Chrome or Edge: https://espressif.github.io/esptool-js/ → Connect →
+   address `0x0` → Program ([esp32/README.md](../esp32/README.md) has the details and the Arduino IDE way).
+2. The LED blinks slowly: join the robot's Wi-Fi **Raqib-Robot** (password `raqib1234`), open http://192.168.4.1,
+   save your phone hotspot's name and password. The robot restarts and joins it (LED steady).
+3. Put the PC on the same hotspot. Run `allow_robot_connections.bat` once (lets Windows accept the robot's broadcast).
+4. Open **http://raqib.local** (or the address the robot's page showed). The test page shows the camera and every
+   sensor live. Nothing wired yet? `imu`, `sonar`, `aht` show as missing: correct for now.
+
+Robot not found by name? Use its IP address, and put it in `edge/config.yaml → hardware: esp32_host`.
+
+## 1. I²C devices and the robot link
+
+```
+..\.venv\Scripts\python -m hwtest.i2c_scan
+```
+
+It finds the robot, then shows each part as `[OK ]` or `MISSING`: MPU6050 (0x68), AHT20 (0x38) and BMP280
+(0x77/0x76), plus the distance sensor, camera and microphone. A missing I²C part: check SDA on D4, SCL on D5, VCC on
+the + rail and GND on the − rail.
 
 ## 2. Motors. **Wheels in the air!**
 
 ```
-python -m hwtest.test_motors
+..\.venv\Scripts\python -m hwtest.test_motors
 ```
 
-- Each wheel should spin in the stated direction. If not, set `invert: true` for that side.
-- Wheels do nothing or twitch → the common ground (L298N GND → Pi pin 9) is missing.
-- The budget robot has no servos (fixed camera), so the servo part is skipped. With the PCA9685 upgrade the servos
-  sweep left/right/up/down; adjust `min_us`/`max_us` if the range is wrong.
+- Each wheel should spin in the stated direction. A wheel backwards → swap that motor's two wires (or set
+  `invert: true` for it under `hardware: motor_left / motor_right` in `edge/config.yaml`). Left and right swapped → swap the D0/D1 pair with D2/D3.
+- Wheels do nothing or twitch → the shared ground (DRV8833 GND → breadboard − rail) is missing, the motor battery is
+  off, or EEP is not on the + rail.
+- Forward refused but backwards works → that is the safety stop: the distance sensor is not answering or sees
+  something closer than 15 cm.
 
-Then **calibrate the driving** (no encoders: the robot times its motors):
-
-```
-python -m hwtest.test_motors --deadband     # wheels in the air: answer y when all 4 wheels turn
-python -m hwtest.test_motors --calibrate    # on the floor: drives 3 s, type the distance in cm
-```
-
-Write the printed `motor_deadband`, `min_power` and `max_speed_mps` into `config.yaml`. Then, on the floor, **Milestone 2**:
+Then **calibrate the driving** (no encoders: distance comes from motor time; turns use the gyro on the robot):
 
 ```
-python -m hwtest.test_motors --straight 2   # target 1.8-2.2 m
-python -m hwtest.test_motors --straight 5
+..\.venv\Scripts\python -m hwtest.test_motors --deadband     # wheels in the air: answer y when both wheels turn
+..\.venv\Scripts\python -m hwtest.test_motors --calibrate    # on the floor: drives 3 s, type the distance in cm
 ```
 
-Measure the sideways drift with a tape measure. The target is < 20 cm.
-- Drifts consistently to one side → tune `heading_kp`.
-- Distance is wrong → charge the motor cells and run `--calibrate` again on this floor (odometry KPI ±10 % without encoders).
-- Robot hesitates or won't turn → raise `min_power` (4WD skid steering usually needs 0.35–0.45; raise `turn_speed` to 0.6 on carpet).
-
-## 3. Ultrasonics + IMU
+Write the printed `motor_deadband`, `min_power` and `max_speed_mps` into `edge/config.yaml`. Then, on the floor:
 
 ```
-python -m hwtest.test_sensors
+..\.venv\Scripts\python -m hwtest.test_motors --straight 2   # target 1.8-2.2 m, drift < 20 cm
 ```
 
-- Move your hand in front of each sensor. The distance should follow. A constant 400 usually means a wiring fault or a missing echo divider.
-- Rotate the robot by hand. Yaw should change by about ±90° for a quarter turn. Keep the robot still for the first 2 s while the gyro calibrates.
+- Drifts to one side → tune `heading_kp`. Distance wrong → charge the 18650s and run `--calibrate` again on this floor.
+- Hesitates or won't turn → raise `min_power` (0.30–0.40 is usual for 2WD; more on carpet).
 
-## 4. Environment sensor
-
-```
-python -m hwtest.test_env                     # live values + verdicts
-```
-
-Put the printed values into `config.yaml`. Check temperature and humidity against a reference
-thermometer/hygrometer (KPI: classification > 85 %). If the AHT20 reads high, it is picking up heat
-from the Pi. Move it away or add a small duct. Gas reads "not measured": correct, there is no gas sensor. (With the BME680 upgrade, also run
-`python -m hwtest.test_env --burn-in` for its VOC baseline; with the MQ-135 + ADS1115 upgrade,
-`python -m hwtest.test_env --calibrate-mq135` outdoors after 24 h burn-in.)
-
-## 5. Camera, microphone, speaker
+## 3. Distance sensor + gyro
 
 ```
-python -m hwtest.test_camera_audio
+..\.venv\Scripts\python -m hwtest.test_sensors
 ```
 
-Open `test_snapshot.jpg` (from the USB webcam), play `test_audio.wav` (the webcam's microphone), and listen for the
-spoken test phrase (PAM8403 on the Pi's audio jack; quick check: `speaker-test -D plughw:CARD=Headphones -c1 -t wav -l1`).
+- Move your hand in front of the HC-SR04P. The distance should follow it (2–400 cm). Always 0 / missing → check
+  TRIG on D6, ECHO on D7, VCC on 3V3, and that it is the **P** (3.3 V) version.
+- Rotate the robot by hand: yaw changes about 90° for a quarter turn. Keep it still for 2 s after power-on (gyro offset).
 
-## 6. Audio model (Edge Impulse)
+## 4. Climate sensor
 
-Follow [EDGE_IMPULSE.md](EDGE_IMPULSE.md) to record the four classes and deploy `models/campus-audio.eim`.
-Until then, the built-in heuristic classifier is used automatically.
+```
+..\.venv\Scripts\python -m hwtest.test_env
+```
 
-## 7. Connect to the app
+Compare temperature and humidity with a reference thermometer. Reads high → the AHT20 is too close to the XIAO or
+the power bank; move it to the far end of the breadboard. Gas reads "not measured": correct, there is no gas sensor.
 
-There is nothing to configure. Switch the robot on, wait about a minute (it says "Raqib is ready" and its address):
+## 5. Camera and microphone
 
-1. Put the phone on the same Wi-Fi as the robot: the phone's own hotspot, the same home/campus Wi-Fi, or the
-   robot's Wi-Fi "Raqib-Robot".
-2. In the app, sign in (it finds the robot by itself, or tap **Find automatically**). Default login: admin / admin123.
-3. **More > AI settings**: paste your Gemini key once; it is saved on the robot.
-4. **More > Robot health** lists every part. *Distance measuring: not fitted* and *Battery level: not measured* are
-   correct for this build. A part you plug in later: tap **Re-check parts**.
+```
+..\.venv\Scripts\python -m hwtest.test_camera_audio
+```
 
-Logs on the Pi: `journalctl -u raqib-server -f` (server) and `journalctl -u inspection-robot -f` (robot program).
-Prefer the old setup with the server on a PC? Delete `~/raqib/backend` before running the installer: the robot then
-looks for `start_backend.bat` on the Wi-Fi instead.
+Open `test_snapshot.jpg` and play `test_audio.wav`. No camera → press the Sense board on firmly and re-seat the camera
+ribbon (with the USB unplugged). The robot has no speaker: the test says so and skips it.
 
-## 8. Map your real rooms
+## 6. Connect to the app
 
-Drive the robot (Dashboard → Manual drive) from the Home spot to each room. Read the pose (x, y) on the
-Dashboard and write them into `zones:` in `config.yaml`, using the same names the agent should understand
-(e.g. `IoT_Lab`, `LectureHall_B`). Restart the robot service. "Inspect the IoT lab" now drives there.
+1. Double-click **`start_my_robot.bat`**: it starts the server and the robot program, which finds the ESP32.
+2. Phone on the same hotspot. In the app, sign in and tap **Find automatically** (default login admin / admin123).
+3. **More > AI settings**: paste your Gemini key once (it is saved on the PC).
+4. **More > Robot health** lists every part. *Speaker: the phone speaks*, *Battery level: not measured* and
+   *Gas: not fitted* are correct for this robot. A part you plug in later: tap **Re-check parts**.
+
+## 7. Map your real rooms
+
+Drive the robot (Drive tab) from the Home spot to each room. Read the pose (x, y) on Home and write them into
+`zones:` in `edge/config.yaml`, using the names the agent should understand (e.g. `IoT_Lab`, `Exam_Hall`).
+Restart `start_my_robot.bat`. "Inspect the IoT lab" now drives there.
 
 > Always start the robot at the **Home** position, facing the same direction. Dead reckoning has no global
-> position fix, so it drifts over long distances (this is a scope limitation in section 1.6).
+> position fix, so it drifts over long distances (a scope limitation in section 1.6).
 > *Settings → Set current position as Home* re-zeros it.
+
+## 8. Audio model (optional, Edge Impulse)
+
+Follow [EDGE_IMPULSE.md](EDGE_IMPULSE.md) to record the classes and deploy `models/campus-audio.eim`. Until then the
+built-in classifier is used automatically.
 
 ## 9. Safety checklist before any demo
 
-- [ ] The STOP button in the app stops the robot (and **RESET E-STOP** is required to move again)
+- [ ] The STOP button in the app stops the robot (and **RESET E-STOP** is needed to move again)
 - [ ] A hand placed 30 cm in front of a driving robot stops it before 15 cm (T-01)
-- [ ] Stopping the server (`sudo systemctl stop raqib-server`) stops the robot within ~10 s, and the state becomes SAFE_HOLD (T-09)
-- [ ] The power bank is full (all LEDs), the motor cells are charged, and you have a charged spare pair of 18650 cells
-- [ ] Driving calibrated on this floor: `--straight 2` ends within 1.8-2.2 m
+- [ ] Closing the robot program's window stops the wheels within 0.6 s (the ESP32's dead-man stop)
+- [ ] The power bank is full (all LEDs), the 18650s are charged, and you have a charged spare pair
+- [ ] Driving calibrated on this floor: `--straight 2` ends within 1.8–2.2 m
 - [ ] `JWT_SECRET` and the default passwords in `backend/.env` have been changed
+
+The older Raspberry Pi build (robot program on the Pi) still works with `hardware.board: pi`; its instructions are in
+the git history of this file (version 2.5).

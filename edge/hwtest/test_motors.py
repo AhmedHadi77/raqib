@@ -23,15 +23,15 @@ def main():
     cfg = real_cfg()
 
     if args.deadband:
-        from robot.hal.real import create_real_hardware
+        from robot.hal import create_hardware
 
-        hw = create_real_hardware(cfg)
+        hw = create_hardware(cfg)
         try:
             print("Wheels in the air. Press Enter after each step; type 'y' + Enter as soon as ALL wheels turn.")
             p = 0.05
             while p <= 0.8:
                 hw.motors.set_wheels(p, p)
-                ans = input(f"  power {p:.2f}: do all 4 wheels turn? [Enter = no, y = yes] ").strip().lower()
+                ans = input(f"  power {p:.2f}: do both wheels turn? [Enter = no, y = yes] ").strip().lower()
                 if ans.startswith("y"):
                     print(f"\nSet in edge/config.yaml:  motion: motor_deadband: {max(0.0, p - 0.05):.2f}   "
                           f"and  min_power: {min(0.6, p + 0.10):.2f}")
@@ -80,9 +80,9 @@ def main():
             app.shutdown()
         return
 
-    from robot.hal.real import create_real_hardware
+    from robot.hal import create_hardware
 
-    hw = create_real_hardware(cfg)
+    hw = create_hardware(cfg)
     try:
         for name, (l, r) in [("LEFT forward", (0.6, 0)), ("LEFT reverse", (-0.6, 0)),
                              ("RIGHT forward", (0, 0.6)), ("RIGHT reverse", (0, -0.6)),
@@ -93,7 +93,7 @@ def main():
             hw.motors.set_wheels(0, 0)
             if hw.extra.get("encoders"):
                 print(f"  encoder ticks now: {hw.encoders.ticks()}")
-        print("If a wheel spun the wrong way set invert: true for that motor in config.yaml")
+        print("If a wheel spun the wrong way: swap that motor's two wires, or set invert: true for that motor (hardware: motor_left / motor_right) in config.yaml")
         if hw.extra.get("fixed_camera"):
             print("No pan/tilt servos (budget build): the robot turns its whole body to look around.")
             return

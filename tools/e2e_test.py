@@ -123,8 +123,9 @@ def main():
                 found = r
                 break
             time.sleep(4)
-        check("V-5", "finds the person talking and asks them to stop", bool(found) and "asked them to stop" in found["reply"],
-              (found or {}).get("speech", "nobody talked")[:70])
+        # ESP32 robot: all-round microphone + no speaker -> it hears the talking and tells YOU to go over
+        check("V-5", "hears the talking and tells the invigilator (no speaker)", bool(found) and "talking" in found["reply"]
+              and "no speaker" in found["reply"], (found or {}).get("speech", "nobody talked")[:70])
         r = http("POST", "/chat", {"message": "monitor the exam in the exam hall for 5 minutes"}, tok, timeout=60)
         busy = http("POST", "/chat", {"message": "go to hall A"}, tok, timeout=60)
         st = http("GET", "/monitor", token=tok)
@@ -132,7 +133,7 @@ def main():
         check("V-6", "exam monitoring starts, blocks other trips, stops", st["active"] and "monitoring the exam" in busy["reply"]
               and "stopped" in stop["reply"].lower() and not http("GET", "/monitor", token=tok)["active"])
 
-        # V-7: proctoring patrol - sees cheating, warns the student, sends a photo, prints a report
+        # V-7: proctoring patrol - sees cheating, sends a photo (no speaker on the ESP32 robot), prints a report
         http("POST", "/monitor/start", {"zone": "Exam_Hall", "minutes": 10, "mode": "patrol"}, tok, timeout=60)
         t0, hit = time.time(), None
         while time.time() - t0 < 240 and not hit:
@@ -143,8 +144,9 @@ def main():
         sid = http("GET", "/monitor/sessions", token=tok)[0]["id"]
         req = urllib.request.Request(f"{BASE}/monitor/sessions/{sid}/print", headers={"Authorization": f"Bearer {tok}"})
         html = urllib.request.urlopen(req, timeout=30).read().decode()
-        check("V-7", "proctor patrol flags cheating with photo + warning, PDF report",
-              bool(hit) and hit["warned"] and bool(hit["image"]) and "exam monitoring report" in html,
+        check("V-7", "proctor patrol flags cheating with a photo for the invigilator, PDF report",
+              bool(hit) and not hit["warned"] and "photo for you" in hit["summary"] and bool(hit["image"])
+              and "exam monitoring report" in html,
               f"{hit['title']} after {time.time() - t0:.0f} s, {st['views']} views" if hit else "nothing flagged")
 
         # T-08 semantic search

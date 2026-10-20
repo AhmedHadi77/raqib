@@ -17,9 +17,9 @@ def main():
     args = ap.parse_args()
     cfg = real_cfg()
     from robot.environmental_sensor import MQ135_A, MQ135_B, EnvironmentalSensor
-    from robot.hal.real import create_real_hardware
+    from robot.hal import create_hardware
 
-    hw = create_real_hardware(cfg)
+    hw = create_hardware(cfg)
     try:
         if args.burn_in:
             if hw.env.read().gas_resistance_ohm is None:

@@ -195,7 +195,9 @@ class RobotTools:
         return {"summary": f"Camera now looking {' and '.join(where) or 'straight ahead'}.", "data": r}
 
     async def speak(self, text: str) -> dict:
-        await self._cmd("speak", text=text)
+        r = await self._cmd("speak", text=text)
+        if not (r or {}).get("spoken", True):
+            return {"summary": f"This robot has no speaker, so here is the message: \"{text}\"", "data": r or {}}
         return {"summary": f"Said: \"{text}\"", "data": {}}
 
     async def get_status(self) -> dict:
@@ -426,8 +428,9 @@ class RobotTools:
         if warn:
             text = message or "Excuse me. Please stop talking. This is an exam."
             try:
-                await self._cmd("speak", text=text)
-                said = " I asked them to stop talking."
+                r = await self._cmd("speak", text=text)
+                said = " I asked them to stop talking." if (r or {}).get("spoken", True) \
+                    else " This robot has no speaker, so please go over and ask them to stop."
             except Exception as e:  # noqa: BLE001
                 log.warning("speak failed: %s", e)
         where = f"Someone is talking {direction}" if direction else "Someone is talking nearby"

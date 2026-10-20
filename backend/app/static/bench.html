@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Raqib Wiring Bench</title>
 <link rel="icon" href="/brand/logo.svg"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
-/* Layout: a workbench. Parts tray on the left, the Pi's 40-pin header (navy, like the app's drive console) on the right, reference sections below. */
+/* Layout: a workbench. Parts tray on the left, the board's pins (navy, like the app's drive console) on the right, reference sections below. */
 :root {
   --bg: #F4F6FA; --surface: #FFFFFF; --sunken: #EBEEF5; --ink: #0D1530; --ink-soft: #56607A; --line: #DDE2EC;
   --primary: #3D63FF; --primary-soft: #E5EBFF; --on-primary: #FFFFFF;
@@ -176,7 +176,7 @@ a.btn { text-decoration: none; display: inline-block; }
     <div class="intro">
       <div class="eyebrow">Raqib · virtual wiring</div>
       <h1>Raqib Wiring Bench</h1>
-      <p class="soft">Wire every part to the Raspberry Pi, one pin at a time. With <b>Robot uses my wiring</b> on, the simulated robot (2D or Webots) works only as well as you wired it: a missing wire is a dead part, swapped wires make a wheel run backwards. When every part is wired, drive it from the app.</p>
+      <p class="soft">Wire every part to the XIAO ESP32S3, one pin at a time (the 3V3 and GND pins feed the breadboard rails, so several wires may share them). With <b>Robot uses my wiring</b> on, the simulated robot (2D or Webots) works only as well as you wired it: a missing wire is a dead part, swapped wires make a wheel run backwards. When every part is wired, drive it from the app.</p>
     </div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Mode">
@@ -210,11 +210,11 @@ a.btn { text-decoration: none; display: inline-block; }
     <div class="board-col" id="board-col">
       <div class="feedback info" id="feedback" aria-live="polite">
         <strong>Pick a pin to start</strong>
-        <span>Open a part on the left and click one of its pins, then click where it goes on the Pi or another board.</span>
+        <span>Open a part on the left and click one of its pins, then click where it goes on the XIAO or another board.</span>
       </div>
       <div class="sel-actions" id="selactions" hidden><button class="btn danger" id="unwire">Disconnect this wire</button></div>
       <div class="board">
-        <div class="board-title"><h3>Raspberry Pi 4 · 40-pin header</h3><span>pin 1 is next to the SD card corner</span></div>
+        <div class="board-title"><h3 id="board-name">XIAO ESP32S3 Sense</h3><span id="board-note">seen from above, USB-C at the top</span></div>
         <div class="header-scroll"><div class="header" id="header"></div></div>
         <div class="legend">
           <span><i style="background:var(--c-p5)"></i>5 V</span><span><i style="background:var(--c-p33)"></i>3.3 V</span>
@@ -271,7 +271,7 @@ $('loginform').addEventListener('submit', async (e) => {
 });
 
 // ---------------------------------------------------------------- spec helpers
-let SPEC = null, HEADER = {}, EXT_NAME = {}, PARTS = [], TOTAL = 0;
+let SPEC = null, HEADER = {}, EXT_NAME = {}, PARTS = [], TOTAL = 0, BOARD_NAME = 'XIAO';
 const CLS_NAME = { p5: '5 V', p33: '3.3 V', gnd: 'ground (GND)', sda: 'I²C SDA', scl: 'I²C SCL', gpio: 'a GPIO pin', id: 'a reserved ID pin' };
 const CLS_COLOR = { p5: 'var(--c-p5)', p33: 'var(--c-p33)', gnd: 'var(--c-gnd)', sda: 'var(--c-sda)', scl: 'var(--c-scl)', gpio: 'var(--c-gpio)', id: 'var(--c-id)' };
 const pinsOf = (cls) => Object.keys(HEADER).filter((k) => HEADER[k][1] === cls).map(Number);
@@ -282,15 +282,15 @@ const matches = (s, t) => s.ext ? t === s.ext : !t.startsWith('pin:') ? false : 
 
 function whyWrong(part, pin, t) {
   const s = pin.spec, hint = $('hints').checked ? ` It goes to ${specText(s)}.` : '';
-  if (!t.startsWith('pin:')) return s.ext ? `Not that terminal.${hint}` : `This wire goes on the Pi's 40-pin header.${hint}`;
-  if (s.ext) return (s.ext === 'bat+' ? 'That puts the 7.4 V motor battery on the Pi and would destroy it.' : 'This one does not go on the Pi header.') + hint;
+  if (!t.startsWith('pin:')) return s.ext ? `Not that terminal.${hint}` : `This wire goes on one of the ${BOARD_NAME}'s pins.${hint}`;
+  if (s.ext) return (s.ext === 'bat+' ? `That puts the 7.4 V motor battery on the ${BOARD_NAME} and would destroy it.` : `This one does not go on the ${BOARD_NAME}'s pins.`) + hint;
   const got = HEADER[+t.slice(4)][1], want = s.cls || HEADER[s.pin][1];
   if ((want === 'gnd' && (got === 'p5' || got === 'p33')) || ((want === 'p5' || want === 'p33') && got === 'gnd')) return `That joins power straight to ground: a short circuit.${hint}`;
   if (want === 'p33' && got === 'p5') return `${part.name} runs on 3.3 V. On 5 V it would burn out.${hint}`;
   if (want === 'p5' && got === 'p33') return `${part.name} needs 5 V. On 3.3 V it will not work.${hint}`;
   if (['gpio', 'sda', 'scl'].includes(want) && ['p5', 'p33', 'gnd'].includes(got)) return `That is a ${CLS_NAME[got]} pin: a signal wire there shorts the signal.${hint}`;
   if (got === 'id') return `Pins 27 and 28 are reserved for HAT identification.${hint}`;
-  if (want === 'sda' || want === 'scl') return `I²C uses the Pi's hardware I²C pins (pin 3 = SDA, pin 5 = SCL).${hint}`;
+  if (want === 'sda' || want === 'scl') return `I²C uses ${pinsOf('sda').map((n) => HEADER[n][0]).join(', ')} and ${pinsOf('scl').map((n) => HEADER[n][0]).join(', ')}.${hint}`;
   return `Right kind of pin, wrong number.${hint || ' Check config.yaml → hardware.'}`;
 }
 
@@ -327,7 +327,7 @@ function renderParts() {
       pins.append(b);
     });
     const facts = d.querySelector('.facts');
-    [['In Webots', part.webots + (part.modelled ? ' (simulated in software)' : '')], ['config.yaml', part.config], ['Test on the Pi', part.test], ['Proof in the app', part.app]].forEach(([k, v], j) => {
+    [['In Webots', part.webots + (part.modelled ? ' (simulated in software)' : '')], ['config.yaml', part.config], ['Test', part.test], ['Proof in the app', part.app]].forEach(([k, v], j) => {
       const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd');
       if (j === 1 || j === 2) { const c = document.createElement('code'); c.style.whiteSpace = 'pre-wrap'; c.textContent = v; dd.append(c); } else dd.textContent = v;
       facts.append(dt, dd);
@@ -342,11 +342,12 @@ function renderBoard() {
   Object.entries(state.wires).forEach(([k, t]) => { counts[t] = (counts[t] || 0) + 1; if (pinStatus(k) === 'wrong') wrongT.add(t); });
   const hint = new Set();
   if (active && $('hints').checked) { const s = active.pin.spec; if (s.ext) hint.add(s.ext); else if (s.cls) pinsOf(s.cls).forEach((n) => hint.add('pin:' + n)); else hint.add('pin:' + s.pin); }
-  for (let r = 0; r < 20; r++) {
+  for (let r = 0; r < Math.ceil(Object.keys(HEADER).length / 2); r++) {
     const odd = r * 2 + 1, even = odd + 1;
-    const lab = (n, side) => { const el = document.createElement('div'); el.className = 'lab ' + side; const [name] = HEADER[n]; const m = name.match(/^GPIO(\d+)(.*)$/);
-      el.innerHTML = m ? `<b class="w">GPIO ${m[1]}</b>${m[2] ? ' ' + m[2].trim() : ''}` : `<b>${name}</b>`; el.title = `Physical pin ${n}: ${name}`; return el; };
-    const btn = (n) => { const b = document.createElement('button'); b.type = 'button'; const t = 'pin:' + n;
+    const lab = (n, side) => { const el = document.createElement('div'); el.className = 'lab ' + side; if (!HEADER[n]) return el; const [name] = HEADER[n];
+      const m = name.match(/^GPIO(\d+)(.*)$/), x = name.match(/^(D\d+) · (.*)$/);
+      el.innerHTML = x ? `<b class="w">${x[1]}</b> ${x[2]}` : m ? `<b class="w">GPIO ${m[1]}</b>${m[2] ? ' ' + m[2].trim() : ''}` : `<b>${name}</b>`; el.title = `${name}`; return el; };
+    const btn = (n) => { if (!HEADER[n]) return document.createElement('div'); const b = document.createElement('button'); b.type = 'button'; const t = 'pin:' + n;
       b.className = 'hp' + (counts[t] ? ' has' : '') + (hint.has(t) ? ' hint' : '') + (wrongT.has(t) ? ' wrong' : '');
       b.style.setProperty('--pc', CLS_COLOR[HEADER[n][1]]); b.setAttribute('aria-label', `Pin ${n}, ${HEADER[n][0]}`);
       b.innerHTML = `<span class="n">${n}</span>${counts[t] > 1 ? `<span class="k">${counts[t]}</span>` : ''}`;
@@ -446,14 +447,15 @@ $('mode-guided').addEventListener('click', () => { state.mode = 'guided'; saveUi
 $('mode-free').addEventListener('click', () => { state.mode = 'free'; saveUi(); renderStatus(); feedback('info', 'Free mode', 'Any wire is allowed. Wire something wrong on purpose and watch the robot and Robot health react.'); });
 $('hints').addEventListener('change', renderAll);
 $('enabled').addEventListener('change', (e) => { state.enabled = e.target.checked; renderStatus(); push(); });
-$('reset').addEventListener('click', () => { state.wires = {}; state.mistakes = 0; active = null; saveUi(); feedback('info', 'All wires removed', 'Start again with the power bank and the L298N.'); renderAll(); push(); });
+$('reset').addEventListener('click', () => { state.wires = {}; state.mistakes = 0; active = null; saveUi(); feedback('info', 'All wires removed', 'Start again with the power bank and the DRV8833.'); renderAll(); push(); });
 
 async function boot() {
   if (!TOKEN) { $('loginbox').hidden = false; return; }
   try {
     SPEC = await api('/wiring/spec');
   } catch (e) { setLive(false, e.message); feedback('bad', 'No robot', 'The bench reads the wiring from the robot program. Start it, then reload this page.'); return; }
-  HEADER = SPEC.header; PARTS = SPEC.parts; TOTAL = PARTS.reduce((n, p) => n + p.pins.length, 0);
+  HEADER = SPEC.header; PARTS = SPEC.parts;
+  if (SPEC.board) { BOARD_NAME = SPEC.board.name || 'board'; $('board-name').textContent = SPEC.board.title; $('board-note').textContent = SPEC.board.note; } TOTAL = PARTS.reduce((n, p) => n + p.pins.length, 0);
   EXT_NAME = Object.fromEntries(SPEC.ext.flatMap((g) => g.items.map(([id, n]) => [id, `${n} (${g.group.replace(/ \(.*\)/, '')})`])));
   try {
     const r = await api('/wiring');

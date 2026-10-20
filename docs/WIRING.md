@@ -1,114 +1,95 @@
-# Wiring guide (reliable budget robot 2.5, ≈ RM 495)
+# Wiring guide (Raqib 3.0, the ESP32 robot, ≈ RM 232)
 
-All GPIO numbers are **BCM** numbers, the same as in `edge/config.yaml → hardware:`. If you wire something
-differently, change the number in the config. The code does not need to change. The illustrated version with
-pictures of every part is `docs/Raqib_Robot_Build_Guide.pdf`.
+Every wire of the robot. The illustrated version (a picture of every part and a check after every step) is
+`docs/Raqib_Robot_Build_Guide.pdf`; the one-page poster is `docs/Raqib_Full_Wiring_Diagram.pdf`. Pin names are the
+XIAO's printed labels (D0…D10). They are fixed in the firmware (`esp32/raqib_esp32/raqib_esp32.ino`), in the
+Wiring Bench and in `edge/robot/wiring_spec.py`.
 
-This build leaves out the parts that most often cause trouble in a first robot: the hand-adjusted 5 V converter,
-wheel encoders, the MQ-135 gas sensor and its ADS1115. They can be added later (see *Upgrades* at the end).
+**Try it first on the PC:** `start_robot_sim.bat`, then `http://localhost:8000/bench`. Place these wires on the
+virtual XIAO and the simulated robot behaves exactly as that wiring would.
 
-## Power (most important: do this first)
+## The golden rule: the XIAO is a 3.3 V board
 
-Two separate batteries. Motor starts can never make the Pi restart.
+Never connect the motor battery, or any 5 V signal, to a XIAO pin. Use the **HC-SR04P** (3.3 V version), not the
+plain HC-SR04 (5 V). Everything on the breadboard runs from the XIAO's 3V3 pin.
+
+## Power: two batteries, one shared ground
 
 ```
-USB power bank 10,000 mAh, 5 V 3 A ── its own USB-C cable ──► Pi USB-C          (the Pi only)
+USB power bank ─── USB-C cable ───► XIAO USB-C                         (the XIAO + sensors only)
 
-2x 18650 (7.4 V, holder with switch) ──► L298N +12V / GND                       (the motors only)
+2 × 18650 (7.4 V, holder with switch) ──► DRV8833 VM (+) and GND (−)    (the motors only)
 
-L298N GND ──────────────────────────────► Pi pin 9 (GND)                        COMMON GROUND (essential)
+DRV8833 GND ──────────────────────────► breadboard − rail (= XIAO GND)  SHARED GROUND (essential)
 ```
 
-- **The common ground wire is essential.** Without it the L298N cannot read the Pi's signals: the wheels do nothing or twitch.
-- Never connect the motor battery's + to the Pi or the hub board, and never power the motors from the Pi's 5 V pin.
-- The power bank must say **5 V 3 A** (15 W or more). Its LEDs show its charge; the app shows "Power bank" instead of a battery %.
-- Config: `battery_monitor: none`.
+- Without the shared ground the DRV8833 cannot read the XIAO's signals: the wheels do nothing or twitch.
+- The DRV8833 allows up to 10.8 V: 2 cells (8.4 V full) is right, never 3.
+- The firmware limits motor power to 70 % (`esp32_max_duty`) because TT motors are 3–6 V motors.
+- No battery % in the app: the power bank shows its charge with its own LEDs.
 
-## I²C bus (Pi pins 3 = SDA, 5 = SCL, 3.3 V)
+## Rails
 
-| Device | Address | Notes |
-|---|---|---|
-| MPU6050 IMU | 0x68 | mount flat, near the centre of the chassis (cheap clones work too) |
-| AHT20 + BMP280 combo | 0x38 + 0x77 (or 0x76) | temperature, humidity, pressure; away from the Pi CPU |
-
-Check everything with `python -m hwtest.i2c_scan`.
-
-## Motors: L298N, speed from the Pi
-
-| L298N pin | Connect to |
+| From | To |
 |---|---|
-| ENA (remove jumper) | GPIO **13** (pin 33), PWM |
-| IN1 / IN2 | GPIO **17** / **27** (pins 11 / 13), left motor |
-| ENB (remove jumper) | GPIO **19** (pin 35), PWM |
-| IN3 / IN4 | GPIO **22** / **23** (pins 15 / 16), right motor |
-| OUT1/OUT2 | left front + left rear motor, joined (red-red, black-black) |
-| OUT3/OUT4 | right front + right rear motor, joined |
-| +12V / GND | motor battery + / −; **GND also to Pi pin 9** |
+| XIAO 3V3 | breadboard + rail (top) |
+| XIAO GND | breadboard − rail (top) |
+| top + rail | bottom + rail (short wire) |
+| top − rail | bottom − rail (short wire) |
 
-If a side spins backwards, set `invert: true` for that motor in the config. `motor_pwm: auto` uses these GPIO pins
-when no PCA9685 is found. The software ramps the power up gently (`motor_ramp_per_s: 4.0`, full power in 0.25 s);
-stopping is always immediate.
+## Motors: DRV8833
 
-## Distance without encoders: calibrate once
+| XIAO | DRV8833 | Also |
+|---|---|---|
+| D0 | AIN1 | left motor |
+| D1 | AIN2 | left motor |
+| D2 | BIN1 | right motor |
+| D3 | BIN2 | right motor |
+| — | EEP (or SLP / STBY, if your board has it) | to the + rail (3V3), or the driver stays asleep |
+| — | AOUT1, AOUT2 | left TT motor (two wires) |
+| — | BOUT1, BOUT2 | right TT motor (two wires) |
 
-`encoders: false` and `motion.odometry: auto`: distance = calibrated speed × motor power × time, turns from the MPU6050.
+A wheel turns the wrong way? Swap that motor's two wires, or set `invert: true` for it in
+`edge/config.yaml → hardware: motor_left / motor_right` (the PC sends it to the robot). Left and right swapped? Swap the D0/D1 pair with the D2/D3 pair.
 
-```
-python -m hwtest.test_motors --deadband     # wheels in the air -> motor_deadband and min_power
-python -m hwtest.test_motors --calibrate    # on the floor, measure with a tape -> max_speed_mps
-python -m hwtest.test_motors --straight 2   # check: 1.8-2.2 m
-```
+## Sensors (I²C bus on D4 = SDA, D5 = SCL)
 
-Calibrate on the floor the robot will use, with charged motor cells.
+| Part | VCC | GND | SDA | SCL | Address |
+|---|---|---|---|---|---|
+| MPU6050 (GY-521) | + rail | − rail | D4 | D5 | 0x68 |
+| AHT20 + BMP280 | + rail | − rail | D4 | D5 | 0x38 and 0x77 (or 0x76) |
 
-## Camera: fixed USB webcam
+Both share the same two wires: put SDA and SCL on two breadboard columns and plug both boards' SDA / SCL into them.
+Keep the AHT20 away from the XIAO and the power bank (they are warm). The MPU6050 should lie flat near the centre;
+keep the robot still for 2 s after switching on (it learns its gyro offset).
 
-There are no servos. The webcam is fixed on the front of the top deck; to look left or right the robot turns its
-whole body, and turns back before it drives on (`pan_tilt: auto`).
+## Distance sensor: HC-SR04P (3.3 V)
 
-## HC-SR04 ultrasonic sensors (5 V parts!)
+| HC-SR04P | Goes to |
+|---|---|
+| VCC | + rail (3V3) |
+| Trig | D6 |
+| Echo | D7 |
+| Gnd | − rail |
 
-The **ECHO pin outputs 5 V**, and the Pi's GPIO pins accept a maximum of 3.3 V. Put a divider on every ECHO line:
+Mount it at the front edge, looking straight ahead, below the camera. No voltage divider is needed with the P version.
 
-```
-ECHO ──[ 1 kΩ ]──┬──► GPIO (echo)
-                 [ 2 kΩ ]
-                 │
-                GND
-```
+## Camera and microphone
 
-| Sensor | TRIG | ECHO (through divider) | Mounting |
-|---|---|---|---|
-| Left | GPIO 12 | GPIO 16 | front-left, pointing 45° left |
-| Center | GPIO 24 | GPIO 25 | front, straight ahead |
-| Right | GPIO 20 | GPIO 21 | front-right, pointing 45° right |
+Both are on the XIAO's Sense board: no wires. Press the Sense board on and click the camera ribbon in **before**
+plugging the USB in. Stand the XIAO upright on a small bracket at the front, USB-C up, camera looking forward.
 
-VCC goes to 5 V and GND to GND. The sensors are pinged one at a time with a quiet gap
-(`ultrasonic_gap_s: 0.012`), so they never hear each other's echoes. Run the pigpio daemon
-(`sudo systemctl enable --now pigpiod`) for the most accurate timing. Buy one spare sensor.
+## Wire count
 
-## Camera, microphone, speaker
+About 22 short jumper wires: XIAO → breadboard 10 (D0–D7, 3V3, GND), rail joiners 2, DRV8833 GND → − rail 1,
+EEP 1, sensor power 6, the second sensor's SDA / SCL 2. Plus the battery's two leads, the motors' four wires and
+the USB-C cable. (The Wiring Bench counts 24 connections because it also counts the USB cable, the motors and the
+camera ribbon.)
 
-- **USB webcam with microphone:** any USB port. The robot uses it for photos, video and hearing (`arecord -l` lists its mic).
-- **PAM8403 + speaker:** power it from 5 V (hub). Input from the Pi's own 3.5 mm audio jack: tip → L, sleeve → G.
-  The robot picks the jack by itself (`speaker_device: auto`); test with `speaker-test -D plughw:CARD=Headphones -c1 -t wav -l1`.
+## Upgrades later
 
-## Pin summary
-
-```
-pin  9 GND -> L298N GND (common ground)
-GPIO 12 US-L trig | GPIO 20 US-R trig | GPIO 24 US-C trig | GPIO 13 ENA (PWM)
-GPIO 16 US-L echo | GPIO 21 US-R echo | GPIO 25 US-C echo | GPIO 19 ENB (PWM)
-GPIO 17 IN1       | GPIO 27 IN2       | GPIO 22 IN3       | GPIO 23 IN4
-GPIO  2/3 I2C SDA/SCL  (MPU6050 0x68, AHT20 0x38, BMP280 0x77)
-```
-
-## Upgrades (the software finds them, or one config line)
-
-- **Gas / CO2:** MQ-135 + ADS1115 (0x48, ADDR → GND). MQ-135 AOUT → 10 kΩ / 20 kΩ divider → ADS1115 A0
-  (`mq135_divider_gain: 1.5`); set `gas_sensor: mq135`. Burn it in for 24-48 h, then
-  `python -m hwtest.test_env --calibrate-mq135` outdoors.
-- **Wheel encoders:** LM393 slot sensors on GPIO 5 / 6 (pins 29 / 31), VCC 3.3 V, 20-slot discs on the front motors;
-  set `encoders: true` and `encoder_ticks_per_rev`.
-- PCA9685 + 2 SG90 servos (ENA/ENB then on PCA9685 ch0/ch1, servos on ch14/ch15), Pi Camera (ribbon), BME680
-  (instead of the AHT20), UPS module (INA219 gauge at 0x42, then `battery_monitor: auto`). See the last page of the build guide.
+| Want | Add | Notes |
+|---|---|---|
+| Longer patrols | bigger power bank (10,000 mAh → 20,000 mAh) | the motor pack lasts longer than the bank |
+| Better grip on carpet | 4WD chassis (two motors per DRV8833 channel) | same wiring, motors in parallel |
+| Spoken warnings from the robot | a Raspberry Pi build (`hardware.board: pi`) | the phone speaks for the ESP32 robot |

@@ -125,7 +125,8 @@ def test_sound_scan_faces_the_person_talking():
     from robot.app import RobotApp
     from robot.config import load_config
 
-    app = RobotApp(load_config(), connect_mqtt=False)
+    # the feature needs a forward-facing microphone (the ESP32 robot's is all-round: it hears, but cannot point)
+    app = RobotApp(load_config(overrides={"audio": {"directional_mic": True}}), connect_mqtt=False)
     app.safety.cloud_timeout = 1e9
     w = app.hw.extra["world"]
     try:
@@ -189,7 +190,7 @@ def test_webots_mode_explains_when_webots_is_missing(monkeypatch, tmp_path):
 
 
 def test_virtual_wiring_controls_the_simulated_robot():
-    """Wiring Bench: no wires = dead robot, correct wires = drivable, IN1/IN2 swapped = left side reversed."""
+    """Wiring Bench (ESP32): no wires = dead robot, correct wires = drivable, AIN1/AIN2 swapped = left side reversed."""
     from robot.app import RobotApp
     from robot.config import load_config
     from robot.wiring_spec import PARTS
@@ -199,7 +200,7 @@ def test_virtual_wiring_controls_the_simulated_robot():
         for pin in p["pins"]:
             s = pin["spec"]
             good[f"{p['id']}.{pin['id']}"] = s.get("ext") or (f"pin:{s['pin']}" if "pin" in s else
-                                                               {"p5": "pin:2", "p33": "pin:1", "gnd": "pin:6"}[s["cls"]])
+                                                               {"p5": "pin:2", "p33": "pin:6", "gnd": "pin:4"}[s["cls"]])
     app = RobotApp(load_config(), connect_mqtt=False)
     app.safety.cloud_timeout = 1e9
     try:
@@ -212,10 +213,10 @@ def test_virtual_wiring_controls_the_simulated_robot():
 
         time.sleep(0.5)                     # let the safety loop see the distance sensors again
         assert app.run_command("move", distance_m=0.4)["result"]["traveled_m"] > 0.3
-        bad = dict(good, **{"l298.in1": "pin:13", "l298.in2": "pin:11"})
+        bad = dict(good, **{"drv.ain1": "pin:3", "drv.ain2": "pin:1"})
         st = app.run_command("set_wiring", enabled=True, wires=bad)["result"]
         assert not st["drivable"] and "backwards" in app.hw.health["motors"]["detail"]
-        st = app.run_command("set_wiring", enabled=True, wires=dict(good, **{"imu.gnd": "pin:1"}))["result"]
+        st = app.run_command("set_wiring", enabled=True, wires=dict(good, **{"imu.gnd": "pin:6"}))["result"]
         assert st["shorts"] and app.hw.health["power"]["ok"] is False
         st = app.run_command("set_wiring", enabled=False)["result"]
         assert not st["enabled"] and app.hw.health["motors"]["ok"]

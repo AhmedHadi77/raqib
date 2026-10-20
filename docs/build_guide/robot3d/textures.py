@@ -9,6 +9,7 @@ sys.path.insert(0, str(HERE.parent))
 from draw import (S, ads1115, aht20, battery_2s, buck_xl4015, gy521, hcsr04, l298n, mq135, pam8403, pi4,  # noqa: E402
                   slot_encoder)
 from diagrams import hub_board  # noqa: E402
+from esp32_draw import drv8833, half_breadboard, xiao_sense  # noqa: E402
 
 TEX = {
     "pi": (289, 190.4, lambda s: pi4(s, 0, 0, 1.0)),
@@ -23,6 +24,9 @@ TEX = {
     "enc": (70, 40, lambda s: slot_encoder(s, 0, 0, 1.0)),
     "battery": (150, 92, lambda s: battery_2s(s, 0, 0, 1.0)),
     "hub": (310, 180, lambda s: hub_board(s, 0, 0, 1.0)),
+    "drv": (92, 112, lambda s: drv8833(s, 0, 0, 1.0)),
+    "bread": (288, 198, lambda s: half_breadboard(s, 0, 0, 1.0)),
+    "xiao": (104, 128, lambda s: xiao_sense(s, 0, 0, 1.0, labels=False, camera=False)),
 }
 
 if __name__ == "__main__":

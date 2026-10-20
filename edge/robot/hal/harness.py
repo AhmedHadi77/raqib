@@ -1,11 +1,11 @@
 """Virtual wiring harness: the simulated robot works only as well as you wired it on the Wiring Bench.
 
 When enabled (from the app's Wiring Bench), every simulated part (2D simulator or Webots) is checked
-against the wires you made to the virtual Raspberry Pi, and behaves the way the real part would:
+against the wires you made to the virtual XIAO ESP32S3, and behaves the way the real part would:
 
   * not connected          -> the part is dead, exactly like a missing part on the real robot
                               (no distance reading = forward driving refused, no encoder ticks, no camera...)
-  * IN1 / IN2 swapped      -> that side of the robot drives backwards
+  * AIN1 / AIN2 swapped    -> that side of the robot drives backwards
   * sensors on each other's pins -> left and right readings swapped
   * 5 V on a 3.3 V part    -> the part is "burnt" until you fix the wire
   * power to ground        -> short circuit: the whole robot is off
@@ -20,7 +20,7 @@ import threading
 
 import numpy as np
 
-from ..wiring_spec import HEADER, PARTS
+from ..wiring_spec import D, HEADER, PARTS
 from .base import (Battery, BatteryReading, Camera, Encoders, EnvRaw, EnvSensor, Hardware, Imu, ImuReading,
                    Microphone, Motors, PanTilt, Speaker, Ultrasonics)
 
@@ -28,9 +28,9 @@ log = logging.getLogger(__name__)
 
 PART = {p["id"]: p for p in PARTS}
 POWER = ("p5", "p33")
-SW_PINS = {11: ("L", 1), 13: ("L", -1), 15: ("R", 1), 16: ("R", -1)}     # L298N inputs as the software drives them
-SW_PWM = {33: "L", 35: "R"}                                             # ENA / ENB on GPIO 13 / 19
+SW_PINS = {D["D0"]: ("L", 1), D["D1"]: ("L", -1), D["D2"]: ("R", 1), D["D3"]: ("R", -1)}   # how the firmware drives the DRV8833
 US_KEYS = ("left", "center", "right")
+NOT_FITTED = "nofit"                    # the ESP32 robot has one distance sensor, at the front
 
 
 def _cls(target: str | None) -> str | None:
@@ -63,11 +63,11 @@ def _matches(spec: dict, target: str | None) -> bool:
 
 def _where(target: str) -> str:
     n = _pin(target)
-    return f"pin {n} ({HEADER[n][0]})" if n else target
+    return f"{HEADER[n][0].split(' ·')[0]}" if n else target
 
 
 def evaluate(wires: dict[str, str]) -> dict:
-    """Judge a set of wires {"part.pin": target} the way the real robot would behave."""
+    """Judge a set of wires {"part.pin": target} the way the real ESP32 robot would behave."""
     w = lambda part, pin: wires.get(f"{part}.{pin}")  # noqa: E731
     pins, warnings, shorts = {}, [], []
     for p in PARTS:
@@ -84,7 +84,7 @@ def evaluate(wires: dict[str, str]) -> dict:
             if want == "gnd" and got in POWER or want in POWER and got == "gnd":
                 shorts.append(f"{label} on {_where(t)}: power is wired straight to ground")
             elif want == "ext:bat+" and got:
-                shorts.append(f"{label} (7.4 V battery) on the Pi's {_where(t)}: this would destroy the Pi")
+                shorts.append(f"{label} (7.4 V battery) on the XIAO's {_where(t)}: this would destroy the ESP32")
             elif want in POWER and t == "bat+":
                 warnings.append(f"{label} on the 7.4 V battery: the part would burn out")
             elif want in POWER and t == "bat-" or want == "ext:bat+" and t == "bat-" or want == "gnd" and t == "bat+":
@@ -92,7 +92,8 @@ def evaluate(wires: dict[str, str]) -> dict:
             elif want in ("gpio", "sda", "scl") and got in POWER + ("gnd",):
                 warnings.append(f"{label} on {_where(t)}: a signal pin on a power or ground pin")
             elif want == "p33" and got == "p5":
-                warnings.append(f"{label} on 5 V: this 3.3 V part would burn out")
+                warnings.append(f"{label} on 5 V: this 3.3 V part would burn out" if p["id"] != "us" else
+                                f"{label} on 5 V: its ECHO would put 5 V on D7 and burn that pin")
 
     def vcc_ok(part, pin="vcc"):
         return pins[f"{part}.{pin}"]["status"] == "ok" and pins[f"{part}.gnd"]["status"] == "ok"
@@ -101,60 +102,47 @@ def evaluate(wires: dict[str, str]) -> dict:
         if not vcc_ok(part, pin):
             return False, "no power (check VCC and GND)"
         sda, scl = _pin(w(part, "sda")), _pin(w(part, "scl"))
-        if sda == 5 and scl == 3:
+        if sda == D["D5"] and scl == D["D4"]:
             return False, "SDA and SCL are swapped, so it does not answer on I2C"
-        if sda != 3 or scl != 5:
-            return False, "not on the I2C bus (SDA must be pin 3, SCL pin 5)"
+        if sda != D["D4"] or scl != D["D5"]:
+            return False, "not on the I2C bus (SDA must be D4, SCL D5)"
         return True, ""
 
     power = w("pbank", "usb") == "usbc"
     eff: dict = {"power": power and not shorts, "shorts": shorts, "warnings": warnings}
     on = eff["power"]
 
-    # ---------------- L298N (speed PWM on GPIO 13 / 19) + motors
-    l298_power = w("l298", "12v") == "bat+" and w("l298", "gndbat") == "bat-"
-    common_gnd = _cls(w("l298", "gndpi")) == "gnd"
+    # ---------------- DRV8833 + motors
+    drv_power = w("drv", "vm") == "bat+" and w("drv", "gndbat") == "bat-"
+    common_gnd = _cls(w("drv", "gndx")) == "gnd"
 
-    def channel(en, a, b):
-        side = SW_PWM.get(_pin(w("l298", en)) or 0)
-        pa, pb = SW_PINS.get(_pin(w("l298", a)) or 0), SW_PINS.get(_pin(w("l298", b)) or 0)
-        if not side or not pa or not pb or pa[0] != side or pb[0] != side or pa[1] == pb[1]:
+    def channel(a, b):
+        pa, pb = SW_PINS.get(_pin(w("drv", a)) or 0), SW_PINS.get(_pin(w("drv", b)) or 0)
+        if not pa or not pb or pa[0] != pb[0] or pa[1] == pb[1]:
             return None
-        return side, pa[1]
+        return pa[0], pa[1]
 
-    chans = {"out12": channel("ena", "in1", "in2"), "out34": channel("enb", "in3", "in4")}
+    chans = {"aout": channel("ain1", "ain2"), "bout": channel("bin1", "bin2")}
     wheels = {}
     for phys in ("left", "right"):
         out = w("motors", phys)
-        wheels[phys] = chans.get(out) if (on and l298_power and common_gnd and out in chans) else None
+        wheels[phys] = chans.get(out) if (on and drv_power and common_gnd and out in chans) else None
     eff["wheels"] = wheels
 
-    # ---------------- ultrasonics: software key -> physical sensor answering on its pins
-    us = {}
-    for k in US_KEYS:
-        trig, echo = PART[f"us_{k}"]["pins"][2]["spec"]["pin"], PART[f"us_{k}"]["pins"][3]["spec"]["pin"]
-        src = None
-        for phys in US_KEYS:
-            pid = f"us_{phys}"
-            if vcc_ok(pid) and _pin(w(pid, "trig")) == trig and _pin(w(pid, "echo")) == echo:
-                src = phys
-        us[k] = src if on else None
-    eff["ultrasonic"] = us
-
-    # ---------------- encoders: not fitted on the reliable budget build (distance from motor time + IMU)
+    # ---------------- the one distance sensor (front)
+    us_ok = on and vcc_ok("us") and _pin(w("us", "trig")) == D["D6"] and _pin(w("us", "echo")) == D["D7"]
+    eff["ultrasonic"] = {"left": NOT_FITTED, "center": "center" if us_ok else None, "right": NOT_FITTED}
     eff["encoders"] = {"left": None, "right": None}
 
     imu_ok, imu_why = i2c("imu")
     aht_ok, aht_why = i2c("aht")
-    cam_ok = on and w("cam", "usb") == "usb"
+    sense = on and w("sense", "b2b") == "b2b"
     eff.update({
         "imu": on and imu_ok, "climate": on and aht_ok, "gas": False,
-        "camera": cam_ok, "microphone": cam_ok,
-        "speaker": on and vcc_ok("spk") and w("spk", "in") == "jack",
-        "battery": False,
+        "camera": sense and w("sense", "cam") == "camsock", "microphone": sense,
+        "speaker": False, "battery": False,
     })
-    burnt = {msg.split(" ")[0] for msg in warnings if "burn" in msg}
-    if burnt:
+    if warnings:
         log.warning("wiring: %s", "; ".join(warnings))
 
     # ---------------- health entries for the app (same keys as the real robot)
@@ -166,11 +154,11 @@ def evaluate(wires: dict[str, str]) -> dict:
     if shorts:
         put("power", False, "SHORT CIRCUIT - " + shorts[0], "Remove that wire on the Wiring Bench. The robot is off until you do.")
     elif not power:
-        put("power", False, "No power: the Pi is not connected to the power bank",
-            "Plug the power bank's USB-C cable into the Pi's USB-C power input.")
+        put("power", False, "No power: the XIAO is not connected to the power bank",
+            "Plug the power bank's USB-C cable into the XIAO.")
     else:
-        put("power", True, "Power bank -> Raspberry Pi; motors on their own 2 x 18650 pack")
-    put("i2c", on, "pins 3 (SDA) and 5 (SCL)" if on else "Pi is off")
+        put("power", True, "Power bank -> XIAO ESP32S3; motors on their own 2 x 18650 pack")
+    put("i2c", on, "D4 (SDA) and D5 (SCL)" if on else "the XIAO is off")
 
     def side_txt(phys):
         c = wheels[phys]
@@ -178,51 +166,46 @@ def evaluate(wires: dict[str, str]) -> dict:
             return None
         txt = []
         if c[0] != phys[0].upper():
-            txt.append(f"driven by the {'left' if c[0] == 'L' else 'right'}-side signals")
+            txt.append(f"driven by the {'left' if c[0] == 'L' else 'right'}-motor signals")
         if c[1] < 0:
             txt.append("runs backwards")
         return ", ".join(txt)
 
     if not on:
         put("motors", False, "no power")
-    elif not l298_power:
-        put("motors", False, "L298N has no motor power", "L298N +12V to Battery +, GND to Battery -.")
+    elif not drv_power:
+        put("motors", False, "DRV8833 has no motor power", "DRV8833 VM to Battery +, GND to Battery -.")
     elif not common_gnd:
-        put("motors", False, "L298N ground is not joined to the Pi ground",
-            "With two batteries this wire is essential: L298N GND (to Pi) to Pi pin 9 or any GND pin.")
+        put("motors", False, "DRV8833 ground is not joined to the XIAO ground",
+            "With two batteries this wire is essential: DRV8833 GND (to XIAO) to the GND rail.")
     elif None in wheels.values():
         dead = [k for k, v in wheels.items() if v is None]
         put("motors", False, f"{' and '.join(dead)} wheel does not turn",
-            "ENA on pin 33, ENB on pin 35, IN1-IN4 on pins 11/13/15/16, and the motors on OUT1/OUT2 and OUT3/OUT4.")
+            "AIN1/AIN2 on D0/D1, BIN1/BIN2 on D2/D3, the left motor on AOUT, the right motor on BOUT.")
     else:
         odd = [f"{k} wheel {side_txt(k)}" for k in ("left", "right") if side_txt(k)]
-        put("motors", not odd, "; ".join(odd) if odd else "L298N, speed on GPIO 13 / 19, both sides OK",
-            "Swap IN1/IN2 (or IN3/IN4) to reverse a side; check which motor is on OUT1/OUT2." if odd else "")
+        put("motors", not odd, "; ".join(odd) if odd else "DRV8833 on D0-D3, both wheels OK",
+            "Swap AIN1/AIN2 (or BIN1/BIN2) to reverse a side; check which motor is on AOUT and BOUT." if odd else "")
     put("pan_tilt", on, "fixed camera: the robot turns to look around" if on else "no power")
-    bad_us = [k for k, v in us.items() if v != k]
-    put("ultrasonic", not bad_us,
-        "3x HC-SR04 OK" if not bad_us else "; ".join(f"{k}: " + ("no reading" if us[k] is None else f"reads the {us[k]} sensor")
-                                                      for k in bad_us),
-        "" if not bad_us else "Each sensor: VCC 5 V, GND, TRIG and ECHO on its own GPIO pair (see config.yaml). "
-                              "No reading in front = forward driving is refused.")
+    put("ultrasonic", us_ok, "HC-SR04P at the front OK" if us_ok else "no reading" if on else "no power",
+        "" if us_ok else "HC-SR04P: VCC 3V3, GND, TRIG on D6, ECHO on D7. No reading = forward driving is refused.")
     put("encoders", on, "not fitted: distance from motor time + MPU6050 heading" if on else "no power")
     put("imu", eff["imu"], "MPU6050 at 0x68" if eff["imu"] else ("no power" if not on else f"MPU6050 {imu_why}"))
     put("environment", eff["climate"], "AHT20 + BMP280 · no gas sensor fitted" if eff["climate"] else
         "no power" if not on else f"AHT20 {aht_why}",
-        "" if eff["climate"] else "AHT20 + BMP280 on I2C: VIN 3.3 V, GND, SDA pin 3, SCL pin 5.")
-    put("camera", eff["camera"], "USB webcam" if eff["camera"] else "no power" if not on else "webcam not plugged into USB")
-    put("microphone", eff["microphone"], "webcam microphone" if eff["microphone"] else "no power" if not on else
-        "the webcam (and its microphone) is not plugged into USB")
-    put("speaker", eff["speaker"], "PAM8403 on the Pi audio jack" if eff["speaker"] else "no power" if not on else
-        "amplifier needs 5 V, GND and audio from the Pi's 3.5 mm jack")
-    put("battery", on, "not measured: Pi on a power bank (see its LEDs), motors on 2 x 18650" if on else "no power")
+        "" if eff["climate"] else "AHT20 + BMP280 on I2C: VIN 3V3, GND, SDA on D4, SCL on D5.")
+    put("camera", eff["camera"], "XIAO Sense camera" if eff["camera"] else "no power" if not on else
+        "camera not connected: Sense board on the XIAO and the ribbon in its socket")
+    put("microphone", eff["microphone"], "XIAO Sense microphone" if eff["microphone"] else "no power" if not on else
+        "the Sense board (with the microphone) is not on the XIAO")
+    put("speaker", True, "no speaker: the phone app speaks and shows alerts")
+    put("battery", on, "not measured: ESP32 on a power bank (see its LEDs), motors on 2 x 18650" if on else "no power")
     for msg in warnings:
         H.setdefault("wiring", {"ok": False, "detail": msg, "hint": "Fix that wire on the Wiring Bench."})
 
     done = sum(1 for v in pins.values() if v["status"] == "ok")
     return {"pins": pins, "effects": eff, "health": H, "done": done, "total": len(pins),
-            "drivable": bool(on and wheels["left"] == ("L", 1) and wheels["right"] == ("R", 1) and us.get("center") == "center"
-                             and eff["imu"])}
+            "drivable": bool(on and wheels["left"] == ("L", 1) and wheels["right"] == ("R", 1) and us_ok and eff["imu"])}
 
 
 # ============================================================================ part proxies
@@ -266,7 +249,7 @@ class HUltrasonics(_Proxy, Ultrasonics):
         h = self._h
         if not h.enabled:
             return r
-        return {k: (r.get(src, 0.0) if src else 0.0) for k, src in h.eff["ultrasonic"].items()}
+        return {k: 400.0 if src == NOT_FITTED else (r.get(src, 0.0) if src else 0.0) for k, src in h.eff["ultrasonic"].items()}
 
 
 class HEncoders(_Proxy, Encoders):

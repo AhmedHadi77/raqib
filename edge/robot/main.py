@@ -1,4 +1,4 @@
-"""Entry point:  python -m robot.main [--sim | --real] [--config config.yaml] [--mqtt-host HOST]"""
+"""Entry point:  python -m robot.main [--sim | --esp32 [HOST] | --real] [--config config.yaml] [--mqtt-host HOST]"""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +15,9 @@ def main():
     ap.add_argument("--config", default=None, help="path to config.yaml")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--sim", action="store_true", help="force simulation mode")
-    g.add_argument("--real", action="store_true", help="force real hardware mode (Raspberry Pi)")
+    g.add_argument("--esp32", nargs="?", const="auto", default=None, metavar="HOST",
+                   help="drive the ESP32 robot over Wi-Fi (address optional: found automatically)")
+    g.add_argument("--real", action="store_true", help="real hardware: the board in config.yaml (esp32 or pi)")
     g.add_argument("--webots", action="store_true", help="drive the 3D robot in Webots (open webots/worlds/raqib_campus.wbt first)")
     ap.add_argument("--mqtt-host", default=None)
     ap.add_argument("--mqtt-port", type=int, default=None)
@@ -29,6 +31,9 @@ def main():
         overrides["simulation"] = True
     if args.real:
         overrides["simulation"] = False
+    if args.esp32:
+        overrides["simulation"] = False
+        overrides["hardware"] = {"board": "esp32", **({"esp32_host": args.esp32} if args.esp32 != "auto" else {})}
     if args.webots:
         overrides["simulation"] = True
         overrides["simulator"] = "webots"

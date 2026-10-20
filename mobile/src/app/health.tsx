@@ -13,21 +13,21 @@ import { useAppSelector } from '@/store';
 import { APP_VERSION, fonts } from '@/theme';
 import type { ComponentHealth } from '@/types';
 
-// `what` describes the budget robot (the RM 500 build); `full` the bigger build with servos, BME680 and a UPS module.
+// `what` describes the ESP32 robot 3.0; `full` the bigger Raspberry Pi build with servos, BME680 and a UPS module.
 const PARTS: { key: string; name: string; icon: any; what: string; full?: string }[] = [
-  { key: 'power', name: 'Power', icon: 'power-plug-outline', what: 'Power bank → Pi; 2x18650 → motors', full: 'Battery, UPS module, Raspberry Pi' },
+  { key: 'power', name: 'Power', icon: 'power-plug-outline', what: 'Power bank → ESP32; 2x18650 → motors', full: 'Battery, UPS module, Raspberry Pi' },
   { key: 'wiring', name: 'Wiring warning', icon: 'flash-alert-outline', what: 'From the Wiring Bench' },
-  { key: 'motors', name: 'Drive motors', icon: 'engine-outline', what: 'L298N + 4 TT motors (4WD), speed on GPIO 13/19', full: 'PCA9685 + L298N' },
-  { key: 'ultrasonic', name: 'Distance sensors', icon: 'signal-distance-variant', what: '3x HC-SR04, obstacle stop' },
+  { key: 'motors', name: 'Drive motors', icon: 'engine-outline', what: 'DRV8833 + 2 TT motors (2WD), on D0-D3', full: 'PCA9685 + L298N' },
+  { key: 'ultrasonic', name: 'Distance sensors', icon: 'signal-distance-variant', what: 'HC-SR04P at the front, obstacle stop' },
   { key: 'encoders', name: 'Distance measuring', icon: 'rotate-3d-variant', what: 'Motor time + MPU6050 (no encoders)', full: 'Wheel encoders' },
   { key: 'imu', name: 'Motion sensor', icon: 'compass-outline', what: 'MPU6050, heading' },
   { key: 'environment', name: 'Air and climate', icon: 'thermometer-lines', what: 'AHT20 + BMP280 (no gas sensor)', full: 'BME680 + MQ-135' },
-  { key: 'camera', name: 'Camera', icon: 'cctv', what: 'USB webcam, video and photos', full: 'Pi Camera, video and photos' },
+  { key: 'camera', name: 'Camera', icon: 'cctv', what: 'XIAO Sense camera, video and photos', full: 'Pi Camera, video and photos' },
   { key: 'pan_tilt', name: 'Looking around', icon: 'axis-arrow', what: 'Fixed camera: the robot turns to look', full: 'Pan / tilt servos' },
-  { key: 'microphone', name: 'Microphone', icon: 'microphone-outline', what: "Webcam microphone: talking, alarms, machines", full: 'USB microphone' },
-  { key: 'speaker', name: 'Speaker', icon: 'speaker', what: 'PAM8403 on the Pi audio jack', full: 'Spoken announcements' },
+  { key: 'microphone', name: 'Microphone', icon: 'microphone-outline', what: 'XIAO Sense microphone: talking, alarms, machines', full: 'USB microphone' },
+  { key: 'speaker', name: 'Speaker', icon: 'speaker', what: 'No speaker: the phone speaks and shows alerts', full: 'Spoken announcements' },
   { key: 'battery', name: 'Battery level', icon: 'battery-charging-outline', what: 'Not measured: see the power bank LEDs', full: 'UPS module gauge' },
-  { key: 'i2c', name: 'I2C bus', icon: 'connection', what: 'MPU6050, AHT20 + BMP280', full: 'Shared sensor bus' },
+  { key: 'i2c', name: 'I2C bus', icon: 'connection', what: 'MPU6050, AHT20 + BMP280 on D4/D5', full: 'Shared sensor bus' },
 ];
 
 function PartRow({ part, h, full }: { part: (typeof PARTS)[number]; h?: ComponentHealth; full?: boolean }) {
@@ -103,7 +103,7 @@ export default function Health() {
           {!live.online ? 'Robot offline' : faults.length ? `${faults.length} part${faults.length > 1 ? 's' : ''} need attention` : 'All systems working'}
         </Text>
         <Text style={{ fontFamily: fonts.body, fontSize: 14, color: '#95A2C6', lineHeight: 20 }}>
-          {info?.simulator === 'webots' ? 'Running in the Webots 3D simulator: motors, wheel encoders, sonars, IMU, camera and speaker are simulated in 3D; climate, gas and microphone are modelled per room. ' : ''}{sim ? `Running in simulation${full ? '' : ' as the reliable RM 500 robot (4WD, webcam, AHT20, power bank, no servos, no encoders, no gas sensor)'}. When the real parts are wired, set simulation: false on the robot and this list shows each one.`
+          {info?.simulator === 'webots' ? 'Running in the Webots 3D simulator: motors, wheel encoders, sonars, IMU, camera and speaker are simulated in 3D; climate, gas and microphone are modelled per room. ' : ''}{sim ? `Running in simulation${full ? '' : ' as the ESP32 robot (2WD, XIAO ESP32S3 Sense camera and microphone, one distance sensor, AHT20 + BMP280, no speaker)'}. When the real robot is built, start it with start_my_robot.bat and this list shows each part.`
             : faults.length ? 'Tap a red item to see how to fix it. The robot keeps working with the parts it has, and refuses to drive forward without its distance sensors.'
               : 'Every motor and sensor answered at start-up.'}
         </Text>

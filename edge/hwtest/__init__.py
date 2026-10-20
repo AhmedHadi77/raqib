@@ -1,4 +1,5 @@
-"""Hardware bring-up tests. Run each on the Pi:  python -m hwtest.<name>"""
+"""Hardware bring-up tests:  python -m hwtest.<name>
+ESP32 robot: run them on the PC (the robot must be on the same Wi-Fi). Raspberry Pi build: run them on the Pi."""
 import logging
 import sys
 from pathlib import Path

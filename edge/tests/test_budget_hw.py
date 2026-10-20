@@ -281,7 +281,7 @@ def test_wiring_bench_esp32_build():
             s = pin["spec"]
             good[f"{p['id']}.{pin['id']}"] = s.get("ext") or (f"pin:{s['pin']}" if "pin" in s else
                                                                {"p5": "pin:2", "p33": "pin:6", "gnd": "pin:4"}[s["cls"]])
-    assert len(good) == 24
+    assert len(good) == 25
     r = evaluate(good)
     assert r["drivable"] and all(v["ok"] for v in r["health"].values()), r["health"]
     assert {p["id"] for p in PARTS} == {"pbank", "drv", "motors", "us", "imu", "aht", "sense"}
@@ -289,6 +289,8 @@ def test_wiring_bench_esp32_build():
     assert not r["health"]["power"]["ok"] and not r["drivable"]
     r = evaluate({k: v for k, v in good.items() if k != "drv.gndx"})
     assert not r["health"]["motors"]["ok"] and "ground" in r["health"]["motors"]["detail"]
+    r = evaluate({k: v for k, v in good.items() if k != "drv.eep"})                  # DRV8833 left asleep
+    assert not r["health"]["motors"]["ok"] and "asleep" in r["health"]["motors"]["detail"] and not r["drivable"]
     r = evaluate({k: v for k, v in good.items() if k != "sense.b2b"})
     assert not r["health"]["camera"]["ok"] and not r["health"]["microphone"]["ok"]
     r = evaluate(dict(good, **{"us.trig": "pin:14", "us.echo": "pin:13"}))           # TRIG / ECHO swapped

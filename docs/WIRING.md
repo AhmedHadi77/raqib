@@ -83,7 +83,7 @@ plugging the USB in. Stand the XIAO upright on a small bracket at the front, USB
 
 About 22 short jumper wires: XIAO → breadboard 10 (D0–D7, 3V3, GND), rail joiners 2, DRV8833 GND → − rail 1,
 EEP 1, sensor power 6, the second sensor's SDA / SCL 2. Plus the battery's two leads, the motors' four wires and
-the USB-C cable. (The Wiring Bench counts 24 connections because it also counts the USB cable, the motors and the
+the USB-C cable. (The Wiring Bench counts 25 connections because it also counts the USB cable, the motors and the
 camera ribbon.)
 
 ## Upgrades later

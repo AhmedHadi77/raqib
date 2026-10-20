@@ -57,6 +57,9 @@ PARTS = [
          {"id": "ain2", "label": "AIN2", "spec": {"pin": D["D1"]}, "why": "Left motor, reverse PWM: D1 (GPIO2)."},
          {"id": "bin1", "label": "BIN1", "spec": {"pin": D["D2"]}, "why": "Right motor, forward PWM: D2 (GPIO3)."},
          {"id": "bin2", "label": "BIN2", "spec": {"pin": D["D3"]}, "why": "Right motor, reverse PWM: D3 (GPIO4)."},
+         {"id": "eep", "label": "EEP (sleep)", "spec": P33,
+          "why": "The DRV8833's wake-up pin (EEP, also printed SLP or STBY) on the 3.3 V rail. Left open, the driver "
+                 "stays asleep and the wheels do nothing."},
      ]},
     {"id": "motors", "name": "TT gear motors (2)", "sub": "2WD: one motor per side, a caster wheel at the back", "health": "motors",
      "webots": "left wheel motor, right wheel motor", "modelled": False, "config": "invert: true on a side that spins backwards",

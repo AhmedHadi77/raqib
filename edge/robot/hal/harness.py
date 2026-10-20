@@ -114,6 +114,7 @@ def evaluate(wires: dict[str, str]) -> dict:
 
     # ---------------- DRV8833 + motors
     drv_power = w("drv", "vm") == "bat+" and w("drv", "gndbat") == "bat-"
+    drv_awake = _cls(w("drv", "eep")) == "p33"
     common_gnd = _cls(w("drv", "gndx")) == "gnd"
 
     def channel(a, b):
@@ -126,7 +127,7 @@ def evaluate(wires: dict[str, str]) -> dict:
     wheels = {}
     for phys in ("left", "right"):
         out = w("motors", phys)
-        wheels[phys] = chans.get(out) if (on and drv_power and common_gnd and out in chans) else None
+        wheels[phys] = chans.get(out) if (on and drv_power and common_gnd and drv_awake and out in chans) else None
     eff["wheels"] = wheels
 
     # ---------------- the one distance sensor (front)
@@ -178,6 +179,9 @@ def evaluate(wires: dict[str, str]) -> dict:
     elif not common_gnd:
         put("motors", False, "DRV8833 ground is not joined to the XIAO ground",
             "With two batteries this wire is essential: DRV8833 GND (to XIAO) to the GND rail.")
+    elif not drv_awake:
+        put("motors", False, "DRV8833 is asleep: EEP is not on 3.3 V",
+            "DRV8833 EEP (or SLP / STBY) to the 3V3 rail. Left open, the driver stays asleep.")
     elif None in wheels.values():
         dead = [k for k, v in wheels.items() if v is None]
         put("motors", False, f"{' and '.join(dead)} wheel does not turn",
